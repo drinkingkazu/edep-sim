@@ -7,6 +7,7 @@
 namespace EDepSim {class UserDetectorConstruction;}
 class G4UIdirectory;
 class G4UIcmdWithAString;
+class G4UIcmdWithABool;
 class G4UIcmdWithAnInteger;
 class G4UIcmdWithADoubleAndUnit;
 class G4UIcmdWithoutParameter;
@@ -35,7 +36,8 @@ private:
     G4UIcommand*               fHitSeparationCmd;
     G4UIcommand*               fHitLengthCmd;
     G4UIcommand*               fHitExcludedCmd;
-
+    G4UIcommand*               fAvoidHitMergingCmd;
+    G4UIcmdWithABool*          fStoreNeutralStepAsPointCmd;
     G4UIdirectory*             fGDMLDir;
     G4UIcmdWithAString*        fGDMLReadCmd;
 

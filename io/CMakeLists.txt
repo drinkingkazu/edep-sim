@@ -10,18 +10,27 @@ if(ROOT_FOUND)
   include(${ROOT_USE_FILE})
 endif(ROOT_FOUND)
 
+find_package(HDF5 REQUIRED)
+include_directories(${HDF5_INCLUDE_DIR})
+
 # Define the source that should be used for the io part of edep-sim.
 set(source
   TG4PrimaryVertex.cxx
   TG4Trajectory.cxx
   TG4HitSegment.cxx
-  TG4Event.cxx)
+  TG4Event.cxx
+  H5DLPDatasets.cxx
+  H5DLPFileStorage.cxx)
 
 set(includes
   TG4PrimaryVertex.h
   TG4Trajectory.h
   TG4HitSegment.h
-  TG4Event.h)
+  TG4Event.h
+  H5DLPDatatypes.h
+  H5DLPDatasets.h
+  H5DLPFileStorage.h
+  )
 
 # Compile the base library with private I/O fields.
 add_definitions(-DEDEPSIM_FORCE_PRIVATE_FIELDS)
@@ -44,7 +53,7 @@ target_include_directories(edepsim_io PUBLIC
   "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>"
   "$<INSTALL_INTERFACE:include/EDepSim>")
 
-target_link_libraries(edepsim_io PUBLIC ${ROOT_LIBRARIES})
+target_link_libraries(edepsim_io PUBLIC ${ROOT_LIBRARIES} ${HDF5_LIBRARIES})
 
 # Install the library for edep-sim
 install(TARGETS edepsim_io

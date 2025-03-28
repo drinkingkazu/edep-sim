@@ -106,6 +106,15 @@ EDepSim::PersistencyMessenger::PersistencyMessenger(
     fClearBoundariesCMD->SetGuidance("Remove all of the boundaries for "
                                      "trajectory points.");
 
+    fROOTOutputCMD = new G4UIcmdWithABool("/edep/db/set/storeROOT", this);
+    fROOTOutputCMD->SetGuidance("If true, store the output in a ROOT file.");
+    fROOTOutputCMD->SetParameterName("Store", false);
+    fROOTOutputCMD->SetDefaultValue("true");    
+
+    fHDF5OutputCMD = new G4UIcmdWithABool("/edep/db/set/storeHDF5", this);
+    fHDF5OutputCMD->SetGuidance("If true, store the output in a HDF5 file.");
+    fHDF5OutputCMD->SetParameterName("Store", false);
+    fHDF5OutputCMD->SetDefaultValue("false");
 }
 
 EDepSim::PersistencyMessenger::~PersistencyMessenger() {
@@ -122,6 +131,8 @@ EDepSim::PersistencyMessenger::~PersistencyMessenger() {
     delete fClearBoundariesCMD;
     delete fPersistencyDIR;
     delete fPersistencySetDIR;
+    delete fROOTOutputCMD;
+    delete fHDF5OutputCMD;
 }
 
 
@@ -164,12 +175,28 @@ void EDepSim::PersistencyMessenger::SetNewValue(G4UIcommand* command,
     else if (command == fTrajectoryBoundaryCMD) {
         fPersistencyManager->AddTrajectoryBoundary(newValue);
     }
-
     else if (command == fTrajectoryBulkCMD) {
         fPersistencyManager->AddTrajectoryBulk(newValue);
     }
     else if (command == fClearBoundariesCMD) {
         fPersistencyManager->ClearTrajectoryBoundaries();
+    }
+    else if (command == fROOTOutputCMD) {
+        fPersistencyManager->SetStoreROOT(
+            fROOTOutputCMD->GetNewBoolValue(newValue));
+            std::cout<<__LINE__<<" ROOT "<<fPersistencyManager->GetStoreROOT()
+            << " HDF5 "<<fPersistencyManager->GetStoreHDF5()<<std::endl;
+    }
+    else if (command == fHDF5OutputCMD) {
+        fPersistencyManager->SetStoreHDF5(
+            fHDF5OutputCMD->GetNewBoolValue(newValue));
+        std::cout<<__LINE__<<" ROOT "<<fPersistencyManager->GetStoreROOT()
+                       << " HDF5 "<<fPersistencyManager->GetStoreHDF5()<<std::endl;
+    }
+    else {
+        G4cerr << "EDepSim::PersistencyMessenger::SetNewValue "
+               << "Unknown command: " << command->GetCommandName()
+               << G4endl;
     }
 }
 
@@ -207,6 +234,19 @@ G4String EDepSim::PersistencyMessenger::GetCurrentValue(G4UIcommand * command) {
     else if (command==fTrajectoryPointDepositCMD) {
         currentValue = fTrajectoryPointDepositCMD->ConvertToString(
             fPersistencyManager->GetTrajectoryPointDeposit());
+    }
+    else if(command==fROOTOutputCMD) {
+        currentValue = fROOTOutputCMD->ConvertToString(
+            fPersistencyManager->GetStoreROOT());
+    }
+    else if(command==fHDF5OutputCMD) {
+        currentValue = fHDF5OutputCMD->ConvertToString(
+            fPersistencyManager->GetStoreHDF5());
+    }
+    else {
+        G4cerr << "EDepSim::PersistencyMessenger::GetCurrentValue "
+               << "Unknown command: " << command->GetCommandName()
+               << G4endl;
     }
 
     return currentValue;

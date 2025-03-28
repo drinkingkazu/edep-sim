@@ -7,6 +7,7 @@
 #include "EDepSimException.hh"
 #include "EDepSimSDFactory.hh"
 #include "EDepSimSegmentSD.hh"
+#include "EDepSimHitSegment.hh"
 
 #include "EDepSimLog.hh"
 
@@ -72,6 +73,21 @@ EDepSim::DetectorMessenger::DetectorMessenger(EDepSim::UserDetectorConstruction*
     par = new G4UIparameter('s');
     par->SetParameterName("Version");
     fControlCmd->SetParameter(par);
+
+    fAvoidHitMergingCmd = new G4UIcommand("/edep/avoidHitMerging",this);
+    fAvoidHitMergingCmd->SetGuidance("Set the flag to avoid merging segments that are in the same hit.");
+    fAvoidHitMergingCmd->AvailableForStates(G4State_PreInit);
+
+    par = new G4UIparameter("Sensitive", 's', false);
+    fAvoidHitMergingCmd->SetParameter(par); 
+
+    par = new G4UIparameter("Avoid", 'b', false);
+    fAvoidHitMergingCmd->SetParameter(par);
+    
+    fStoreNeutralStepAsPointCmd = new G4UIcmdWithABool("/edep/storeNeutralStepAsPoint", this);
+    fStoreNeutralStepAsPointCmd->SetGuidance("Set the flag to store the neutral step as a point.");
+    fStoreNeutralStepAsPointCmd->SetParameterName("Store", false);
+    fStoreNeutralStepAsPointCmd->SetDefaultValue("false");
 
     fHitSagittaCmd = new G4UIcommand("/edep/hitSagitta",this);
     fHitSagittaCmd->SetGuidance(
@@ -181,6 +197,8 @@ EDepSim::DetectorMessenger::~DetectorMessenger()
     delete fHitSeparationCmd;
     delete fHitLengthCmd;
     delete fHitExcludedCmd;
+    delete fAvoidHitMergingCmd;
+    delete fStoreNeutralStepAsPointCmd;
     delete fGDMLReadCmd;
     delete fGDMLDir;
     delete fMaterialBirksCmd;
@@ -239,6 +257,32 @@ void EDepSim::DetectorMessenger::SetNewValue(G4UIcommand * cmd,
         EDepSimLog("%%     Version:        " << version);
         G4UImanager* UI = G4UImanager::GetUIpointer();
         UI->ApplyCommand("/control/execute " + file);
+    }
+    else if (cmd == fStoreNeutralStepAsPointCmd) {
+        HitSegmentControl::GetME()->fStoreNeutralStepAsPoint = fStoreNeutralStepAsPointCmd->GetNewBoolValue(newValue);
+    }
+    else if (cmd == fGDMLReadCmd) {
+        G4GDMLParser* gdmlParser = fConstruction->GetGDMLParser();
+        if (gdmlParser) delete gdmlParser;
+        gdmlParser = new G4GDMLParser;
+        fConstruction->SetGDMLParser(gdmlParser);
+        // Read the gdml file, but don't try and validate it against the
+        // schema since there's a really high chance it won't be available.
+        gdmlParser->Read(newValue,false);
+    }
+    else if (cmd == fAvoidHitMergingCmd) {
+        std::istringstream input((const char*)newValue);
+        std::string sdName;
+        bool avoid;
+        input >> sdName >> avoid;
+        SDFactory factory("segment");
+        SegmentSD* sd = dynamic_cast<SegmentSD*>(factory.MakeSD(sdName));
+        if (sd) {
+            sd->SetAvoidMerging(avoid);
+        }
+        else {
+            std::cout << "Invalid sensitive detector" << std::endl;
+        }
     }
     else if (cmd == fHitSagittaCmd) {
         std::istringstream input((const char*)newValue);

@@ -33,12 +33,19 @@
 
 G4Allocator<EDepSim::HitSegment> edepHitSegmentAllocator;
 
+namespace EDepSim {
+    HitSegmentControl* HitSegmentControl::_me = 0;
+}
+
 EDepSim::HitSegment::HitSegment(
     double maxSagitta, double maxSeparation, double maxLength)
     : fMaxSagitta(maxSagitta), fMaxSeparation(maxSeparation),
       fMaxLength(maxLength),
       fPrimaryId(0), fEnergyDeposit(0), fSecondaryDeposit(0), fTrackLength(0),
-      fStart(0,0,0,0), fStop(0,0,0,0) {
+      fStart(0,0,0,0), fStop(0,0,0,0),
+      fStartMomentum(0,0,0,0), fStopMomentum(0,0,0,0),
+      fStartStatus(7), fStartProcessType(0), fStartProcessSubType(-1), fStartProcessName(""), 
+      fStopStatus(7), fStopProcessType(0), fStopProcessSubType(-1), fStopProcessName("") {
     fPath.reserve(50);
     if (fMaxSeparation > fMaxSagitta) fMaxSeparation = fMaxSagitta;
     if (fMaxSeparation > fMaxLength) fMaxSeparation = fMaxLength;
@@ -49,11 +56,17 @@ EDepSim::HitSegment::HitSegment(const EDepSim::HitSegment& rhs)
     : G4VHit(rhs),
       fMaxSagitta(rhs.fMaxSagitta), fMaxSeparation(rhs.fMaxSeparation),
       fMaxLength(rhs.fMaxLength),
-      fContributors(rhs.fContributors), fPrimaryId(rhs.fPrimaryId),
-      fEnergyDeposit(rhs.fEnergyDeposit),
+      fContributors(rhs.fContributors), fContributions(rhs.fContributions),
+      fPrimaryId(rhs.fPrimaryId), fEnergyDeposit(rhs.fEnergyDeposit),
       fSecondaryDeposit(rhs.fSecondaryDeposit),
       fTrackLength(rhs.fTrackLength),
-      fStart(rhs.fStart), fStop(rhs.fStop) {}
+      fStart(rhs.fStart), fStop(rhs.fStop),
+      fStartMomentum(rhs.fStartMomentum), fStopMomentum(rhs.fStopMomentum),
+      fStartStatus(rhs.fStartStatus), fStartProcessType(rhs.fStartProcessType),
+      fStartProcessSubType(rhs.fStartProcessSubType), fStartProcessName(rhs.fStartProcessName),
+      fStopStatus(rhs.fStopStatus), fStopProcessType(rhs.fStopProcessType),
+      fStopProcessSubType(rhs.fStopProcessSubType), fStopProcessName(rhs.fStopProcessName)
+      {}
 
 
 EDepSim::HitSegment::~HitSegment() { }
@@ -114,7 +127,10 @@ void EDepSim::HitSegment::AddStep(G4Step* theStep) {
         = theStep->GetPreStepPoint()->GetTouchableHandle();
     G4ThreeVector prePos = theStep->GetPreStepPoint()->GetPosition();
     G4ThreeVector postPos = theStep->GetPostStepPoint()->GetPosition();
+    G4ThreeVector preMom = theStep->GetPreStepPoint()->GetMomentum();
+    G4ThreeVector postMom = theStep->GetPostStepPoint()->GetMomentum();
     G4StepStatus stepStatus = theStep->GetPostStepPoint()->GetStepStatus();
+    G4StepStatus preStatus = theStep->GetPreStepPoint()->GetStepStatus();
     G4ParticleDefinition* particle =  theStep->GetTrack()->GetDefinition();
     double energyDeposit = theStep->GetTotalEnergyDeposit();
     double stepLength = (prePos-postPos).mag();
@@ -152,14 +168,21 @@ void EDepSim::HitSegment::AddStep(G4Step* theStep) {
     // energy should be deposited at the stopping point of the track.
     if (stepStatus == fPostStepDoItProc
         && std::abs(particle->GetPDGCharge()) < 0.1) {
-        double origStep = stepLength;
-        G4ThreeVector dir = (postPos - prePos).unit();
-        stepLength = trackLength = std::min(0.5*mm,0.8*origStep);
-        prePos = postPos - stepLength*mm*dir;
-        EDepSimDebug("EDepSim::HitSegment:: " << particle->GetParticleName()
-                     << " Deposited " << energyDeposit/MeV << " MeV");
-        EDepSimDebug("    Original step: " << origStep/mm << " mm");
-        EDepSimDebug("    New step: " << stepLength/mm << " mm");
+
+        if(HitSegmentControl::GetME()->fStoreNeutralStepAsPoint){
+            // Record it as the point energy deposition
+            prePos = postPos;
+        }else{
+            double origStep = stepLength;
+            G4ThreeVector dir = (postPos - prePos).unit();
+            stepLength = trackLength = std::min(0.5*mm,0.8*origStep);
+            prePos = postPos - stepLength*mm*dir;
+            std::cout << "EDepSim::HitSegment:: " << particle->GetParticleName() << " Deposited " << energyDeposit/MeV << " MeV" << std::endl << "    Original step: " << origStep/mm << " mm"<<std::endl<< "    New step: " << stepLength/mm << " mm"<<std::endl;
+            EDepSimDebug("EDepSim::HitSegment:: " << particle->GetParticleName()
+                         << " Deposited " << energyDeposit/MeV << " MeV");
+            EDepSimDebug("    Original step: " << origStep/mm << " mm");
+            EDepSimDebug("    New step: " << stepLength/mm << " mm");
+        }
     }
 
     if (stepLength>fMaxLength || trackLength>fMaxLength) {
@@ -201,13 +224,43 @@ void EDepSim::HitSegment::AddStep(G4Step* theStep) {
         fPath.push_back(fStart.vect());
         fStop.set(postPos.x(),postPos.y(),postPos.z(),
                   theStep->GetPostStepPoint()->GetGlobalTime());
+        fStartMomentum.set(preMom.x(),preMom.y(),preMom.z(),
+            theStep->GetPreStepPoint()->GetTotalEnergy());
+        fStopMomentum.set(postMom.x(),postMom.y(),postMom.z(),
+            theStep->GetPostStepPoint()->GetTotalEnergy());
+        fStartStatus = preStatus;
+        fStopStatus = stepStatus;
+        auto preproc_ptr = theStep->GetPreStepPoint()->GetProcessDefinedStep();
+        if(preproc_ptr) {
+            fStartProcessType = preproc_ptr->GetProcessType();
+            fStartProcessSubType = preproc_ptr->GetProcessSubType();
+            fStartProcessName = preproc_ptr->GetProcessName();
+        }
+        auto postproc_ptr = theStep->GetPostStepPoint()->GetProcessDefinedStep();
+        if(postproc_ptr) {
+            fStopProcessType = postproc_ptr->GetProcessType();
+            fStopProcessSubType = postproc_ptr->GetProcessSubType();
+            fStopProcessName = postproc_ptr->GetProcessName();
+        }
         fPath.push_back(fStop.vect());
         fContributors.push_back(theStep->GetTrack()->GetTrackID());
+        fContributions.push_back(energyDeposit);
     }
     else {
         // Record the tracks that contribute to this hit.
         int trackId = theStep->GetTrack()->GetTrackID();
-        if (trackId != fContributors.front()) fContributors.push_back(trackId);
+        bool found = false;
+        for(size_t i=0; i<fContributors.size(); ++i) {
+            if (fContributors[i] == trackId) {
+                found = true;
+                fContributions[i] += energyDeposit;
+                break;
+            }
+        }
+        if(!found) {
+            fContributors.push_back(trackId);
+            fContributions.push_back(energyDeposit);
+        }
 
         // Check to see if we have a new stopping point.
         if (trackId == fContributors.front()

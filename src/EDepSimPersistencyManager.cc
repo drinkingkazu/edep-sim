@@ -47,7 +47,9 @@ EDepSim::PersistencyManager::PersistencyManager()
       fLengthThreshold(10*mm),
       fGammaThreshold(5*MeV), fNeutronThreshold(50*MeV),
       fTrajectoryPointAccuracy(1.*mm), fTrajectoryPointDeposit(0*MeV),
-      fSaveAllPrimaryTrajectories(true) {
+      fSaveAllPrimaryTrajectories(true),
+      fROOTOutput(false), fHDF5Output(false),
+      fMergeHitSegments(false){
     fPersistencyMessenger = new EDepSim::PersistencyMessenger(this);
 }
 
@@ -200,30 +202,149 @@ bool EDepSim::PersistencyManager::UpdateSummaries(const G4Event* event) {
 
     const G4Run* runInfo = G4RunManager::GetRunManager()->GetCurrentRun();
 
-    fEventSummary.RunId = runInfo->GetRunID();
-    fEventSummary.EventId = event->GetEventID();
-    EDepSimLog("Event Summary for run " << fEventSummary.RunId
-               << " event " << fEventSummary.EventId);
-
-    if (GetRequireEventsWithHits() && not EventHasHits(event)) {
-        EDepSimLog("   No hits and /edep/db/set/requireEventsWithHits is true");
-        return false;
-    }
-
     // Summarize the trajectories first so that fTrackIdMap is filled.
     MarkTrajectories(event);
 
-    SummarizePrimaries(fEventSummary.Primaries,event->GetPrimaryVertex());
-    EDepSimLog("   Primaries " << fEventSummary.Primaries.size());
+    BuildIndexMap(event);
 
-    SummarizeTrajectories(fEventSummary.Trajectories,event);
-    EDepSimLog("   Trajectories " << fEventSummary.Trajectories.size());
+    if(fROOTOutput) {
 
-    SummarizeSegmentDetectors(fEventSummary.SegmentDetectors, event);
-    EDepSimLog("   Segment Detectors "
-               << fEventSummary.SegmentDetectors.size());
+        fEventSummary.RunId = runInfo->GetRunID();
+        fEventSummary.EventId = event->GetEventID();
+        EDepSimLog("Event Summary for run " << fEventSummary.RunId
+                   << " event " << fEventSummary.EventId);
+    
+        if (GetRequireEventsWithHits() && not EventHasHits(event)) {
+            EDepSimLog("   No hits and /edep/db/set/requireEventsWithHits is true");
+            return false;
+        }
+
+        SummarizePrimaries(fEventSummary.Primaries,event->GetPrimaryVertex());
+        EDepSimLog("   Primaries " << fEventSummary.Primaries.size());
+
+        SummarizeTrajectories(fEventSummary.Trajectories,event);
+        EDepSimLog("   Trajectories " << fEventSummary.Trajectories.size());
+
+        SummarizeSegmentDetectors(fEventSummary.SegmentDetectors, event);
+        EDepSimLog("   Segment Detectors "
+                << fEventSummary.SegmentDetectors.size());
+
+    }else{
+
+        if(GetRequireEventsWithHits()) {
+            EDepSimError("   HDF5 mode does not support /edep/db/set/requireEventsWithHits");
+            return false;
+        }
+
+        auto& header = fH5Summary.GetEvent("geant4");
+        header.run_id = runInfo->GetRunID();
+        header.event_id = event->GetEventID();
+
+        auto& dest_prim   = fH5Summary.GetVLArray<H5DLP::Primary>("geant4","primary");
+        auto& dest_vertex = fH5Summary.GetVLArray<H5DLP::Vertex>("geant4","vertex");
+        SummarizePrimariesH5(dest_prim, dest_vertex, event->GetPrimaryVertex());
+        EDepSimLog("   Primaries " << dest_prim.Size());
+
+        header.num_vertices = dest_vertex.Size();
+        header.num_primaries = dest_prim.Size();
+
+        auto& dest_part = fH5Summary.GetVLArray<H5DLP::Particle>("geant4","particle");
+        SummarizeTrajectoriesH5(dest_part, event);
+        EDepSimLog("   Trajectories " << dest_part.Size());
+
+        header.num_particles = dest_part.Size();
+
+        SummarizeSegmentDetectorsH5(fH5Summary, header, event);
+    }
 
     return true;
+}
+
+
+void EDepSim::PersistencyManager::SummarizePrimariesH5(
+    H5DLP::VLArrayDataset<H5DLP::Primary>& dest_part,
+    H5DLP::VLArrayDataset<H5DLP::Vertex>& dest,
+    const G4PrimaryVertex* src) {
+
+    if (!src) return;
+
+    int interaction_id = 0;
+
+    while (src) {
+
+        H5DLP::Vertex vtx;
+
+        vtx.interaction_id = interaction_id;
+        vtx.ke_sum = 0;
+        vtx.energy_sum = 0;
+        vtx.num_particles = 0;
+        vtx.x = src->GetX0();
+        vtx.y = src->GetY0();
+        vtx.z = src->GetZ0();
+        vtx.t = src->GetT0();
+
+        // Add the particles associated with the vertex to the summary.
+        for (int i=0; i< src->GetNumberOfParticle(); ++i) {
+
+            H5DLP::Primary prim;
+            prim.mass = 0.;
+
+            G4PrimaryParticle *g4Prim = src->GetPrimary(i);
+            if (g4Prim->GetG4code()) {
+                prim.name = g4Prim->GetG4code()->GetParticleName();
+                prim.mass = g4Prim->GetG4code()->GetPDGMass();
+            }
+            prim.pdg = g4Prim->GetPDGcode();
+            prim.track_id = g4Prim->GetTrackID() - 1;
+            prim.px=g4Prim->GetPx();
+            prim.py=g4Prim->GetPy();
+            prim.pz=g4Prim->GetPz();
+            prim.ke= sqrt(pow(prim.px,2) + pow(prim.py,2) + pow(prim.pz,2));
+            prim.interaction_id = interaction_id;
+
+            dest_part.Add(prim);
+
+            vtx.num_particles++;
+            vtx.ke_sum += prim.ke;
+            vtx.energy_sum += sqrt(pow(prim.ke,2) + pow(prim.mass,2));
+        }
+
+        // Check to see if there is anyu user information associated with the
+        // vertex.
+        EDepSim::VertexInfo* srcInfo
+            = dynamic_cast<EDepSim::VertexInfo*>(src->GetUserInformation());
+        if (srcInfo) {
+            
+            vtx.generator = srcInfo->GetName();
+            vtx.reaction  = srcInfo->GetReaction();
+            vtx.filename  = srcInfo->GetFilename();
+            vtx.generator_vertex_id = srcInfo->GetInteractionNumber();
+            vtx.xs        = srcInfo->GetCrossSection();
+            vtx.diff_xs   = srcInfo->GetDiffCrossSection();
+            vtx.weight    = srcInfo->GetWeight();
+            vtx.probability = srcInfo->GetProbability();
+            const G4PrimaryVertex* infoVertex
+                = srcInfo->GetInformationalVertex();
+            if (infoVertex) {
+
+                auto& info_dest_part = fH5Summary.GetVLArray<H5DLP::Primary>(vtx.generator.c_str(),"primary");
+                auto& info_dest = fH5Summary.GetVLArray<H5DLP::Vertex>(vtx.generator.c_str(),"vertex");
+                SummarizePrimariesH5(info_dest_part,info_dest,srcInfo->GetInformationalVertex());
+
+                for(size_t i=0; i<info_dest_part.Size(); ++i) {
+                    info_dest_part.At(i).interaction_id = interaction_id;
+                }
+                for(size_t i=0; i<info_dest.Size(); ++i) {
+                    info_dest.At(i).interaction_id = interaction_id;
+                }
+                EDepSimWarn("InformationalVertex found but not saving in H5 ");
+            }
+        }
+
+        interaction_id++;
+        dest.Add(vtx);
+        src = src->GetNext();
+    }
 }
 
 void EDepSim::PersistencyManager::SummarizePrimaries(
@@ -296,13 +417,7 @@ void EDepSim::PersistencyManager::SummarizeTrajectories(
     TG4TrajectoryContainer& dest,
     const G4Event* event) {
     dest.clear();
-    MarkTrajectories(event);
-
-    // Build a map of the original G4 TrackID to the new relocated TrackId
-    // (not capitalization).  This also uses the fact that maps are sorted as
-    // a hack to prevent writing a predicate to sort TG4Trajectories (because
-    // I'm lazy).
-    fTrackIdMap.clear();
+    //MarkTrajectories(event);
 
     const G4TrajectoryContainer* trajectories = event->GetTrajectoryContainer();
     if (!trajectories) {
@@ -314,21 +429,19 @@ void EDepSim::PersistencyManager::SummarizeTrajectories(
         return;
     }
 
-    int index = 0;
+    int max_track_id=-1;
     TG4TrajectoryContainer tempContainer;
     for (TrajectoryVector::iterator t = trajectories->GetVector()->begin();
          t != trajectories->GetVector()->end();
          ++t) {
         EDepSim::Trajectory* ndTraj = dynamic_cast<EDepSim::Trajectory*>(*t);
-        /*int pdg = ndTraj->GetPDGEncoding();
-        if (abs(pdg) != 11 && pdg != 22) {
-          std::cout << "Traj: " << pdg << " PID: " <<
-                       ndTraj->GetParentID() << " Save: " <<
-                       ndTraj->SaveTrajectory() << std::endl;
-        }*/
 
         // Check if the trajectory should be saved.
-        if (!ndTraj->SaveTrajectory()) continue;
+        if(fTrack2OutputIndex[ndTraj->GetTrackID()]==-1)
+            continue;
+        
+        if(max_track_id < ndTraj->GetTrackID())
+            max_track_id = ndTraj->GetTrackID();
 
         // Set the particle type information.
         G4ParticleDefinition* part
@@ -339,8 +452,6 @@ void EDepSim::PersistencyManager::SummarizeTrajectories(
                       + "No particle information for "
                       + ndTraj->GetParticleName());
         }
-
-        fTrackIdMap[ndTraj->GetTrackID()] = index++;
 
         TG4Trajectory traj;
         traj.TrackId = ndTraj->GetTrackID();
@@ -369,33 +480,198 @@ void EDepSim::PersistencyManager::SummarizeTrajectories(
         tempContainer.push_back(traj);
     }
 
-    // Reorder the trajectories using the sorted fTrackIdMap.  This uses the
-    // fact that the map is going to have the right sort order.
-    for (TrackIdMap::iterator i = fTrackIdMap.begin();
-         i != fTrackIdMap.end(); ++i) {
-        dest.push_back(tempContainer[i->second]);
+    // Reorder the trajectories and store in dest container
+    dest.resize(tempContainer.size());
+    for(size_t i=0; i<tempContainer.size(); ++i) {
+        auto& traj = tempContainer[i];
+        int output_index = fTrack2OutputIndex[traj.TrackId];
+        dest[output_index] = traj;
     }
-
-    // Now that the trajectories are reordered, reassign the mapping from the
-    // original ndTraj->GetTrackID() value to the index in the Trajectories
-    // vector.
-    index = 0;
-    for (TrackIdMap::iterator i = fTrackIdMap.begin();
-         i != fTrackIdMap.end(); ++i) {
-        i->second = index++;
-    }
-
-    // Make double sure that TrackID zero maps to the non-existent -1.
-    fTrackIdMap[0] = -1;
 
     /// Rewrite the track ids so that they are consecutive.
     for (TG4TrajectoryContainer::iterator
              t = dest.begin();
          t != dest.end(); ++t) {
-        t->TrackId = fTrackIdMap[t->TrackId];
-        t->ParentId = fTrackIdMap[t->ParentId];
+        t->TrackId  = fTrack2OutputIndex[t->TrackId];
+        t->ParentId = fTrack2OutputIndex[t->ParentId];
     }
 
+}
+
+void EDepSim::PersistencyManager::SummarizeTrajectoriesH5(
+    H5DLP::VLArrayDataset<H5DLP::Particle>& dest,
+    const G4Event* event) {
+
+    const G4TrajectoryContainer* trajectories = event->GetTrajectoryContainer();
+    if (!trajectories) {
+        EDepSimError("No trajectory container");
+        return;
+    }
+    if (!trajectories->GetVector()) {
+        EDepSimError("No trajectory vector in trajectory container");
+        return;
+    }
+
+    int max_track_id=-1;
+    std::vector<H5DLP::Particle> array1, array2;
+    array1.reserve(trajectories->GetVector()->size());
+    array2.reserve(trajectories->GetVector()->size());
+    for (TrajectoryVector::iterator t = trajectories->GetVector()->begin();
+         t != trajectories->GetVector()->end();
+         ++t) {
+        EDepSim::Trajectory* ndTraj = dynamic_cast<EDepSim::Trajectory*>(*t);
+
+        // Check if the trajectory should be saved.
+        if(fTrack2OutputIndex[ndTraj->GetTrackID()]==-1)
+            continue;
+        
+        if(max_track_id < ndTraj->GetTrackID())
+            max_track_id = ndTraj->GetTrackID();
+
+        // Set the particle type information.
+        G4ParticleDefinition* g4part
+            = G4ParticleTable::GetParticleTable()->FindParticle(
+                ndTraj->GetParticleName());
+        if (!g4part) {
+            EDepSimError(std::string("EDepSim::RootPersistencyManager::")
+                      + "No particle information for "
+                      + ndTraj->GetParticleName());
+        }
+
+        H5DLP::Particle part;
+
+        part.track_id = ndTraj->GetTrackID();
+        part.mass = g4part->GetPDGMass();
+        part.pdg = ndTraj->GetPDGEncoding();
+        part.parent_track_id = ndTraj->GetParentID();
+        part.ancestor_track_id = EDepSim::TrajectoryMap::FindPrimaryId(part.track_id);
+        part.px = ndTraj->GetInitialMomentum().x();
+        part.py = ndTraj->GetInitialMomentum().y();
+        part.pz = ndTraj->GetInitialMomentum().z();
+        part.ke = std::sqrt(pow(part.px,2) + pow(part.py,2) + pow(part.pz,2));
+
+        // Get the first point
+        auto initPoint = dynamic_cast<EDepSim::TrajectoryPoint*>(ndTraj->GetPoint(0));
+        auto lastPoint = dynamic_cast<EDepSim::TrajectoryPoint*>(ndTraj->GetPoint(ndTraj->GetPointEntries()-1));
+
+        part.x = initPoint->GetPosition().x();
+        part.y = initPoint->GetPosition().y();
+        part.z = initPoint->GetPosition().z();
+        part.t = initPoint->GetTime();
+        part.end_x = lastPoint->GetPosition().x();
+        part.end_y = lastPoint->GetPosition().y();
+        part.end_z = lastPoint->GetPosition().z();
+        part.end_t = lastPoint->GetTime();
+
+        part.end_px = lastPoint->GetMomentum().x();
+        part.end_py = lastPoint->GetMomentum().y();
+        part.end_pz = lastPoint->GetMomentum().z();
+        part.end_ke = std::sqrt(pow(part.end_px,2) + pow(part.end_py,2) + pow(part.end_pz,2));
+        part.proc_start = initPoint->GetProcessType();
+        part.subproc_start = initPoint->GetProcessSubType();
+        part.proc_name_start = initPoint->GetProcessName();
+        part.proc_end = lastPoint->GetProcessType();
+        part.subproc_end = lastPoint->GetProcessSubType();
+        part.proc_name_end = lastPoint->GetProcessName();
+
+        int throttle = 999999;
+        do {
+            if (part.parent_track_id == 0) break;
+            EDepSim::Trajectory* pTraj
+                = dynamic_cast<EDepSim::Trajectory*>(
+                    EDepSim::TrajectoryMap::Get(part.parent_track_id));
+            if (!pTraj) {
+                EDepSimError("Trajectory " << part.parent_track_id << " does not exist");
+                throw;
+                break;
+            }
+            if (pTraj->SaveTrajectory()) break;
+            part.parent_track_id = pTraj->GetParentID();
+        } while (--throttle > 0);
+        array1.push_back(part);
+    }
+
+    // Reorder the trajectories and store in dest container
+    array2.resize(array1.size());
+    for(size_t i=0; i<array1.size(); ++i) {
+        auto& part = array1[i];
+        int output_index = fTrack2OutputIndex[part.track_id];
+        array2[output_index] = part;
+    }
+
+    /// Rewrite the track ids so that they are consecutive.
+    for (auto& part : array2) {
+        part.track_id = fTrack2OutputIndex[part.track_id];
+        part.parent_track_id = fTrack2OutputIndex[part.parent_track_id];
+        part.ancestor_track_id = fTrack2OutputIndex[part.ancestor_track_id];
+        dest.Add(part);
+    }
+
+}
+
+void EDepSim::PersistencyManager::BuildIndexMap(const G4Event* event) {
+
+    std::fill(fTrack2OutputIndex.begin(), fTrack2OutputIndex.end(), -1);
+    std::fill(fTrack2InputIndex.begin(),  fTrack2InputIndex.end(),  -1);
+
+    const G4TrajectoryContainer* trajectories = event->GetTrajectoryContainer();
+    if (!trajectories) {
+        EDepSimError("No trajectory container");
+        return;
+    }
+    if (!trajectories->GetVector()) {
+        EDepSimError("No trajectory vector in trajectory container");
+        return;
+    }
+
+    size_t array_size = std::max(fTrack2OutputIndex.size(),trajectories->GetVector()->size());
+    fTrack2OutputIndex.resize(array_size, -1);
+    fTrack2InputIndex.resize (array_size, -1);
+
+    int input_index = 0;
+    int output_count = 0;
+    int max_track_id = -1;
+    for (TrajectoryVector::iterator t = trajectories->GetVector()->begin();
+         t != trajectories->GetVector()->end();
+         ++t) {
+        EDepSim::Trajectory* ndTraj = dynamic_cast<EDepSim::Trajectory*>(*t);
+
+        // Check if the trajectory should be saved.
+        if (!ndTraj->SaveTrajectory()) {
+            input_index++;
+            continue;
+        }
+        // Set the particle type information.
+        G4ParticleDefinition* part
+            = G4ParticleTable::GetParticleTable()->FindParticle(
+                ndTraj->GetParticleName());
+        if (!part) {
+            EDepSimError(std::string("EDepSim::RootPersistencyManager::")
+                      + "No particle information for "
+                      + ndTraj->GetParticleName());
+        }
+        int track_id = ndTraj->GetTrackID();
+        if(track_id > max_track_id)
+            max_track_id = track_id;
+
+        if(track_id >= (int)fTrack2OutputIndex.size()) {
+            fTrack2OutputIndex.resize(track_id+1, -1);
+            fTrack2InputIndex.resize(track_id+1, -1);
+        }
+        fTrack2InputIndex[track_id] = input_index++;
+        output_count++;
+    }
+
+    fOutputIndex2Track.resize(output_count,-1);
+    std::fill(fOutputIndex2Track.begin(), fOutputIndex2Track.end(), -1);
+
+    int output_index = 0;
+    for (int track_id=0; track_id<max_track_id; ++track_id) {
+        if (fTrack2InputIndex[track_id] == -1) continue;
+        fTrack2OutputIndex[track_id] = output_index;
+        fOutputIndex2Track[output_index] = track_id;
+        output_index++;
+    }
 }
 
 void EDepSim::PersistencyManager::MarkTrajectories(const G4Event* event) {
@@ -629,6 +905,42 @@ EDepSim::PersistencyManager::SummarizeSegmentDetectors(
 }
 
 void
+EDepSim::PersistencyManager::SummarizeSegmentDetectorsH5(
+    H5DLP::FileStorage& dest,
+    H5DLP::Event& header,
+    const G4Event* event) {
+
+    header.num_steps = 0;
+    auto& part_v = dest.GetVLArray<H5DLP::Particle>("geant4","particle");
+    std::string ass_name_base = "particle_pstep_";
+
+    G4HCofThisEvent* HCofEvent = event->GetHCofThisEvent();
+    if (!HCofEvent) return;
+    G4SDManager *sdM = G4SDManager::GetSDMpointer();
+    G4HCtable *hcT = sdM->GetHCtable();
+    // Copy each of the hit categories into the output event.
+    for (int i=0; i<hcT->entries(); ++i) {
+        G4String SDname = hcT->GetSDname(i);
+        G4String HCname = hcT->GetHCname(i);
+        int HCId = sdM->GetCollectionID(SDname+"/"+HCname);
+
+        std::string ass_name = ass_name_base + SDname.c_str();
+        auto& ass_v = dest.GetAss(ass_name);
+        auto& dest_sd = dest.GetVLArray<H5DLP::PStep>(SDname.c_str(),"pstep");
+
+        G4VHitsCollection* g4Hits = HCofEvent->GetHC(HCId);
+        if (g4Hits->GetSize()<1) continue;
+        EDepSim::HitSegment* hitSeg
+            = dynamic_cast<EDepSim::HitSegment*>(g4Hits->GetHit(0));
+        if (!hitSeg) continue;
+
+        SummarizeHitSegmentsH5(dest_sd,ass_v,part_v,g4Hits);
+        EDepSimLog("   Segment Detector " << SDname.c_str() << " got " << dest_sd.Size() << " steps");
+        header.num_steps += dest_sd.Size();
+    }
+}
+
+void
 EDepSim::PersistencyManager::SummarizeHitSegments(TG4HitSegmentContainer& dest,
                                              G4VHitsCollection* g4Hits) {
     dest.clear();
@@ -652,7 +964,108 @@ EDepSim::PersistencyManager::SummarizeHitSegments(TG4HitSegmentContainer& dest,
                           g4Hit->GetStop().y(),
                           g4Hit->GetStop().z(),
                           g4Hit->GetStop().t());
+        hit.StartMomentum.SetXYZT(g4Hit->GetStartMomentum().x(),
+            g4Hit->GetStartMomentum().y(),
+            g4Hit->GetStartMomentum().z(),
+            g4Hit->GetStartMomentum().t());
+        hit.StopMomentum.SetXYZT(g4Hit->GetStopMomentum().x(),
+            g4Hit->GetStopMomentum().y(),
+            g4Hit->GetStopMomentum().z(),
+            g4Hit->GetStopMomentum().t());
+        hit.StartStatus = g4Hit->GetStartStatus();
+        hit.StartProcessType = g4Hit->GetStartProcessType();
+        hit.StartProcessSubType = g4Hit->GetStartProcessSubType();
+        //hit.StartProcessName = g4Hit->GetStartProcessName();
+        hit.StopStatus = g4Hit->GetStopStatus();
+        hit.StopProcessType = g4Hit->GetStopProcessType();
+        hit.StopProcessSubType = g4Hit->GetStopProcessSubType();
+        //hit.StopProcessName = g4Hit->GetStopProcessName();
         dest.push_back(hit);
+    }
+}
+
+void
+EDepSim::PersistencyManager::SummarizeHitSegmentsH5(H5DLP::VLArrayDataset<H5DLP::PStep>& dest,
+    H5DLP::VLArrayDataset<H5DLP::Ass>& ass_v,
+    H5DLP::VLArrayDataset<H5DLP::Particle>& part_v,
+    G4VHitsCollection* g4Hits) {
+
+    EDepSim::HitSegment* g4Hit = dynamic_cast<EDepSim::HitSegment*>(g4Hits->GetHit(0));
+    if (!g4Hit) return;
+
+    // Sort the order of an outer array
+    std::vector<size_t> hindex2oindex, reservation;
+    hindex2oindex.reserve(1000000);
+    reservation.resize(fOutputIndex2Track.size()+1,0);
+
+    for(size_t i=0; i<g4Hits->GetSize(); ++i) {
+        g4Hit = dynamic_cast<EDepSim::HitSegment*>(g4Hits->GetHit(i));
+        for(auto const& track_id : g4Hit->GetContributors()) {
+            if(track_id >= (int)(fTrack2OutputIndex.size()) || fTrack2OutputIndex[track_id] == -1) {
+                hindex2oindex.push_back(fOutputIndex2Track.size());
+                reservation[fOutputIndex2Track.size()]++;
+            }else{
+                hindex2oindex.push_back(fTrack2OutputIndex[track_id]);
+                reservation[fTrack2OutputIndex[track_id]]++;
+            }
+        }
+    }
+    
+    std::vector<std::vector<H5DLP::PStep> > steps_v;
+    steps_v.resize(reservation.size());
+    ass_v.Clear();
+    H5DLP::Ass ass;
+    ass_v.Reserve(reservation.size());
+    size_t index_offset=0;
+    for(size_t oindex=0; oindex<reservation.size(); ++oindex) {
+        if(reservation[oindex] > 0)
+            steps_v[oindex].reserve(reservation[oindex]);
+        ass.start = index_offset;
+        ass.end = index_offset+reservation[oindex];
+        index_offset += reservation[oindex];
+        ass_v.Add(ass);
+    }
+
+    for (std::size_t h=0; h<g4Hits->GetSize(); ++h) {
+        g4Hit = dynamic_cast<EDepSim::HitSegment*>(g4Hits->GetHit(h));
+        H5DLP::PStep step;
+        //step.primary_id = fTrackIdMap[g4Hit->GetPrimaryTrajectoryId()];
+        step.x = g4Hit->GetStart().x();
+        step.y = g4Hit->GetStart().y();
+        step.z = g4Hit->GetStart().z();
+        step.t = g4Hit->GetStart().t();
+        step.theta = g4Hit->GetStartMomentum().theta();
+        step.phi = g4Hit->GetStartMomentum().phi();
+        step.p = g4Hit->GetStartMomentum().mag();
+        step.de = g4Hit->GetEnergyDeposit();
+        step.dx = g4Hit->GetTrackLength();
+        step.proc_start = g4Hit->GetStartProcessType();
+        step.subproc_start = g4Hit->GetStartProcessSubType();
+        step.proc_stop = g4Hit->GetStopProcessType();
+        step.subproc_stop = g4Hit->GetStopProcessSubType();
+
+        for(size_t cindex=0; cindex < g4Hit->GetContributors().size(); cindex++) {
+            step.track_id = g4Hit->GetContributors()[cindex];
+            step.de = g4Hit->GetContributions()[cindex];
+            size_t output_index;
+            if(step.track_id >= (int)(fTrack2OutputIndex.size()) || fTrack2OutputIndex[step.track_id] == -1) {
+                output_index = fOutputIndex2Track.size();
+            }else{
+                output_index = fTrack2OutputIndex[step.track_id];
+            }
+
+            step.ancestor_track_id = H5DLP::kINVALID_INT;
+            step.pdg = H5DLP::kINVALID_INT;
+            if(output_index < fOutputIndex2Track.size()) {
+                step.ancestor_track_id = part_v.At(output_index).ancestor_track_id;
+                step.pdg = part_v.At(output_index).pdg;
+            }
+            steps_v[output_index].push_back(step);
+        }
+    }
+
+    for(auto const& steps : steps_v) {
+        dest.Add(steps);
     }
 }
 
@@ -674,22 +1087,34 @@ void EDepSim::PersistencyManager::CopyHitContributors(std::vector<int>& dest,
                 EDepSim::TrajectoryMap::Get(ndTraj->GetParentID()));
         }
         if (!ndTraj) {
-            dest.push_back(-1);
+            // This trajectory does not exist OR this and none of its parent is to be saved
+            dest.push_back(-1 * (*c));
             continue;
         }
         if (fTrackIdMap.find(ndTraj->GetTrackID()) != fTrackIdMap.end()) {
             dest.push_back(fTrackIdMap[ndTraj->GetTrackID()]);
         }
         else {
+            // Unexpected: logic error
             EDepSimError("Contributor with unknown trajectory: "
                       << ndTraj->GetTrackID());
-            dest.push_back(-2);
+            //dest.push_back(-2);
         }
     }
 
     // Remove the duplicate entries.
-    std::sort(dest.begin(),dest.end());
-    dest.erase(std::unique(dest.begin(),dest.end()),dest.end());
+    //std::sort(dest.begin(),dest.end());
+    //dest.erase(std::unique(dest.begin(),dest.end()),dest.end());
+    
+    // Duplicate entries should not exist 2025-03-28: assert
+    for(std::size_t i=0; i<dest.size(); ++i) {
+        for(std::size_t j=i+1; j<dest.size(); ++j) {
+            if(dest[i] == dest[j]) {
+                EDepSimError("Duplicate contributor: " << dest[i]);
+            }
+        }
+    }
+
 }
 
 double EDepSim::PersistencyManager::FindTrajectoryAccuracy(

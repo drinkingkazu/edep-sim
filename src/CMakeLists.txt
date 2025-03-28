@@ -43,7 +43,7 @@ target_include_directories(edepsim PRIVATE
 target_link_directories(edepsim PUBLIC $ENV{DLPGENERATOR_LIBDIR})
 
 target_link_libraries(edepsim PUBLIC
-  edepsim_io ${Geant4_LIBRARIES} ${ROOT_LIBRARIES} 
+  edepsim_io ${Geant4_LIBRARIES} ${ROOT_LIBRARIES} ${HDF5_LIBRARIES}
   yaml-cpp LiteFMWK_ParticleBomb
 )
 

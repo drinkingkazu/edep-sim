@@ -44,7 +44,11 @@ bool EDepSim::RootPersistencyManager::Open(G4String filename) {
         EDepSimLog("EDepSim::RootPersistencyManager::Open "
                  << "-- Delete current file pointer" );
     }
-
+    if (fHDF5Output) {
+        EDepSimError("EDepSim::H5PersistencyManager::Open "
+                   << "-- Cannot open ROOT file when fHDF5Output is true");
+        return false;
+    }
     SetFilename(filename);
 
     EDepSimLog("EDepSim::RootPersistencyManager::Open " << GetFilename());

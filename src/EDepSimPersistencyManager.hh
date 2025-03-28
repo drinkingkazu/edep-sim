@@ -4,6 +4,7 @@
 #define EDepSim_PersistencyManager_h 1
 
 #include "TG4Event.h"
+#include "H5DLPFileStorage.h"
 
 #include <G4VPersistencyManager.hh>
 #include <G4StepStatus.hh>
@@ -214,6 +215,29 @@ public:
     /// Get the detector partition.
     int GetDetectorPartition() const {return fDetectorPartition;}
 
+    /// Set the ROOT output flag.
+    void SetStoreROOT(bool val) {fROOTOutput = val;}
+
+    /// Get the ROOT output flag.
+    bool GetStoreROOT() const {return fROOTOutput;}
+
+    /// Set the HDF5 output flag.
+    void SetStoreHDF5(bool val) {fHDF5Output = val;}
+
+    /// Get the HDF5 output flag.
+    bool GetStoreHDF5() const {return fHDF5Output;}
+
+    /// Set the flag to merge hit segments.
+    void SetMergeHitSegments(bool val) {
+        fMergeHitSegments = val;
+    }
+
+    /// Get the flag to merge hit segments.
+    bool GetMergeHitSegments() const {
+        return fMergeHitSegments;
+    }
+
+
 protected:
     /// Set the output filename.  This can be used by the derived classes to
     /// inform the base class of the output file name.
@@ -224,29 +248,61 @@ protected:
     /// Update the event summary fields.
     bool UpdateSummaries(const G4Event* event);
 
-    /// A summary of the primary vertices in the event.
+    /// A summary of the primary vertices in the event (ROOT)
     TG4Event fEventSummary;
+
+    /// A summary of the primary vertices in the event (HDF5)
+    ::H5DLP::FileStorage fH5Summary;
+
+    /// A switch to save the ROOT file output
+    bool fROOTOutput;
+
+    /// A switch to save the HDF5 file output
+    bool fHDF5Output;
 
 private:
     // Fill the vertex container.  This allows informational vertices to be
     // filled.
     void SummarizePrimaries(std::vector<TG4PrimaryVertex>& primaries,
-                            const G4PrimaryVertex* event);
+        const G4PrimaryVertex* event);
+
+    // Fill the vertex container.  This allows informational vertices to be
+    // filled.
+    void SummarizePrimariesH5(H5DLP::VLArrayDataset<H5DLP::Primary>& dest_part,
+        H5DLP::VLArrayDataset<H5DLP::Vertex>& dest,
+        const G4PrimaryVertex* event);
+
 
     /// Fill the trajectory container.
     void SummarizeTrajectories(std::vector<TG4Trajectory>& trajectories,
                                const G4Event* event);
 
+    void SummarizeTrajectoriesH5(H5DLP::VLArrayDataset<H5DLP::Particle>& dest,
+        const G4Event* event);
+
     /// Mark the G4 Trajectories that should be saved.
     void MarkTrajectories(const G4Event* event);
+
+    /// Build the index map between the G4 TrackID and the output/input track index.  
+    void BuildIndexMap(const G4Event* event);
 
     /// sensitive detector.
     void SummarizeSegmentDetectors(TG4HitSegmentDetectors& segmentDetectors,
                                    const G4Event* event);
 
+    void SummarizeSegmentDetectorsH5(H5DLP::FileStorage& dest,
+        H5DLP::Event& header,
+        const G4Event* event);
+
     /// Fill a container of hit segments.
     void SummarizeHitSegments(std::vector<TG4HitSegment>& segments,
                               G4VHitsCollection* hits);
+
+    /// Fill a container of hit segments.
+    void SummarizeHitSegmentsH5(H5DLP::VLArrayDataset<H5DLP::PStep>& dest,
+        H5DLP::VLArrayDataset<H5DLP::Ass>& ass_v,
+        H5DLP::VLArrayDataset<H5DLP::Particle>& part_v,
+        G4VHitsCollection* g4Hits);
 
     /// Fill the map of sensitive detectors which use hit segments as the
     /// Copy and map the contributing trajectories from the vector of
@@ -299,6 +355,10 @@ private:
     typedef std::map<int,int> TrackIdMap;
     TrackIdMap fTrackIdMap;
 
+    std::vector<int> fTrack2OutputIndex; /// G4 TrackID => output index (new track Id)
+    std::vector<int> fTrack2InputIndex;  /// G4 TrackID => input index
+    std::vector<int> fOutputIndex2Track; /// Output index => G4 TrackID
+
     /// The filename of the output file.
     G4String fFilename;
 
@@ -339,6 +399,9 @@ private:
     /// particles travel through
     std::vector<std::string> fTrajectoryBulks;
 
+    /// A switch to merge hit segments
+    bool fMergeHitSegments;
+    
     /// The detector partition
     int fDetectorPartition;
 

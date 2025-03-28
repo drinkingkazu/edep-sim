@@ -51,6 +51,15 @@ public:
         fMaximumHitLength = length;
     }
     double GetMaximumHitLength(void) {return fMaximumHitLength;}
+
+    /// Set the switch to turn on/off merging of hit segments.
+    void SetAvoidMerging(bool avoid) {
+        EDepSimLog("Set avoid merging to " << avoid
+                << " for " << GetName());
+        fAvoidMerging = avoid;
+    }
+    bool GetAvoidMerging(void) {return fAvoidMerging;}
+
     
 private:
     /// The collection of hits that is being filled in the current event.  It
@@ -72,6 +81,10 @@ private:
 
     /// The last hit that was found.
     int fLastHit;
+
+    /// A switch to turn off merging of hit segments
+    bool fAvoidMerging;
+
 };
 
 #endif

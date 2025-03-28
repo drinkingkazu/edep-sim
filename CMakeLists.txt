@@ -44,6 +44,10 @@ if(ROOT_FOUND)
   include(${ROOT_USE_FILE})
 endif(ROOT_FOUND)
 
+# Make sure that HDF5 is available.  HDF5 is used to store the output 
+find_package(HDF5 REQUIRED)
+include_directories(${HDF5_INCLUDE_DIR})
+
 # Look for GEANT4.  If it's found, then build the simulation.
 # Otherwise, this can be skipped, but only the i/o library is built.
 if(NOT EDEPSIM_READONLY)

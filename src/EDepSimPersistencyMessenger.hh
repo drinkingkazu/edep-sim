@@ -41,6 +41,8 @@ private:
     G4UIcmdWithAString*        fTrajectoryBoundaryCMD;
     G4UIcmdWithAString*        fTrajectoryBulkCMD;
     G4UIcmdWithoutParameter*   fClearBoundariesCMD;
+    G4UIcmdWithABool*          fROOTOutputCMD;
+    G4UIcmdWithABool*          fHDF5OutputCMD;
 
 };
 #endif

@@ -62,6 +62,9 @@ public:
     /// Provide public access to the contributors for internal G4 classes.
     std::vector<int>& GetContributors() {return fContributors;}
 
+    /// Provide public access to the contributions for internal G4 classes.
+    std::vector<float>& GetContributions() {return fContributions;}
+
     /// Find the distance from the starting point to stoping point of the
     /// track.
     virtual double GetLength() const;
@@ -109,6 +112,26 @@ public:
 
     /// The position of the stopping point.
     const G4LorentzVector& GetStop() const {return fStop;}
+
+    const G4LorentzVector& GetStartMomentum() const {return fStartMomentum;}
+
+    const G4LorentzVector& GetStopMomentum() const {return fStopMomentum;}
+
+    unsigned short GetStartStatus() const {return fStartStatus;}
+
+    unsigned short GetStartProcessType() const {return fStartProcessType;}
+
+    int GetStartProcessSubType() const {return fStartProcessSubType;}
+
+    const std::string& GetStartProcessName() const {return fStartProcessName;}
+
+    unsigned short GetStopStatus() const {return fStopStatus;}
+
+    unsigned short GetStopProcessType() const {return fStopProcessType;}
+
+    int GetStopProcessSubType() const {return fStopProcessSubType;}
+
+    const std::string& GetStopProcessName() const {return fStopProcessName;}
 
 #ifdef BOGUS
     /// The X position of the hit starting point.  Note that a hit by
@@ -197,6 +220,9 @@ private:
     /// necessarily.
     std::vector<int> fContributors;
 
+    /// The energy deposited by each of the contributors.
+    std::vector<float> fContributions;
+
     /// The track id of the primary particle.
     int fPrimaryId;
 
@@ -227,6 +253,28 @@ private:
     /// The stopping position of the segment.
     G4LorentzVector fStop;
 
+    /// The starting momentum of the segment.
+    G4LorentzVector fStartMomentum;
+
+    /// The stopping momentum of the segment.
+    G4LorentzVector fStopMomentum;
+
+    unsigned short fStartStatus;
+
+    unsigned short fStartProcessType;
+
+    int fStartProcessSubType;
+
+    std::string fStartProcessName;
+
+    unsigned short fStopStatus;
+
+    unsigned short fStopProcessType;
+
+    int fStopProcessSubType;
+
+    std::string fStopProcessName;   
+
 private:
     /// The G4 physical volume that contains the hit.
     EDepSim::VolumeId fHitVolume;
@@ -249,5 +297,32 @@ inline void* EDepSim::HitSegment::operator new(size_t) {
 inline void EDepSim::HitSegment::operator delete(void *aHit) {
     edepHitSegmentAllocator.FreeSingle((EDepSim::HitSegment*) aHit);
 }
+
+namespace EDepSim{ class HitSegmentControl; }
+class EDepSim::HitSegmentControl {
+
+    private:
+    
+        /// Singleton constructor
+        HitSegmentControl() : fStoreNeutralStepAsPoint(false) {};
+    
+        /// Default destructor
+        virtual ~HitSegmentControl() {};
+    
+        static HitSegmentControl* _me;
+
+    public:
+
+    /// Singleton getter
+    static HitSegmentControl* GetME()
+    {
+        if (!_me) _me = new HitSegmentControl();
+        return _me;
+    }
+
+    public:
+        bool fStoreNeutralStepAsPoint;
+
+};
 
 #endif

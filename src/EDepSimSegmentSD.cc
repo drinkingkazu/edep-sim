@@ -24,7 +24,8 @@ EDepSim::SegmentSD::SegmentSD(G4String name)
      fMaximumHitSagitta(1*CLHEP::mm),
      fMaximumHitSeparation(1*CLHEP::mm),
      fMaximumHitLength(3*CLHEP::mm),
-     fLastHit(0) {
+     fLastHit(0),
+     fAvoidMerging(false) {
     // In an unbelievably poor interface, the G4VSensitiveDetector class
     // exposes the protected field "std::vector<G4String> collectionName" to
     // the user and expects any derived classes to explicitly fill it with the
@@ -65,13 +66,13 @@ G4bool EDepSim::SegmentSD::ProcessHits(G4Step* theStep,
 
     // Check to see if the last hit in the vector of hits needs to be
     // expanded.
-    if (0<=fLastHit && fLastHit < (int) fHits->entries()) {
+    if (!fAvoidMerging && 0<=fLastHit && fLastHit < (int) fHits->entries()) {
         EDepSim::HitSegment *tmpHit = (*fHits)[fLastHit];
         if (tmpHit->SameHit(theStep)) {
             currentHit = tmpHit;
         }
     }
-
+    
     // If a hit wasn't found, create one.
     if (!currentHit) {
         currentHit = new EDepSim::HitSegment(fMaximumHitSagitta,

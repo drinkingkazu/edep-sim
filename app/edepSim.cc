@@ -1,6 +1,7 @@
 #include "EDepSimCreateRunManager.hh"
 #include "EDepSimPersistencyManager.hh"
 #include "EDepSimRootPersistencyManager.hh"
+#include "EDepSimH5PersistencyManager.hh"
 #include "EDepSimLog.hh"
 
 #include "G4RunManager.hh"
@@ -43,6 +44,11 @@ void usage () {
     exit(1);
 }
 
+bool hasSuffix(const std::string& str, const std::string& suffix) {
+    if (str.length() < suffix.length()) return false;
+    return str.compare(str.length() - suffix.length(), suffix.length(), suffix) == 0;
+}
+
 int main(int argc,char** argv) {
     EDepSim::LogManager::Configure();
 
@@ -70,7 +76,7 @@ int main(int argc,char** argv) {
 
     if (argc<2) usage();
 
-    while (!errflg && ((c=getopt(argc,argv,"CdD:e:g:o:p:qsuUvV:h")) != -1)) {
+    while (!errflg && ((c=getopt(argc,argv,"CdD:e:g:o:p:qsuUvV:h:H")) != -1)) {
         switch (c) {
         case 'C': {
             // Toggle the validateGeometry flag.  The default value is set
@@ -259,14 +265,19 @@ int main(int argc,char** argv) {
     // save internal data structures.
     EDepSim::PersistencyManager* persistencyManager = NULL;
 
-    persistencyManager = new EDepSim::RootPersistencyManager();
-
-    // Create a "no i/o" persistency manager.  This doesn't actually save
-    // anything, and it may be better to stop if there isn't a real
-    // persistency manager declared.  This is here as paranoia in case later
-    // code gets clever about how the persistency manager is created.
-    if (!persistencyManager) {
+    if(hasSuffix(outputFilename,".root")) {
+        persistencyManager = new EDepSim::RootPersistencyManager();
+        persistencyManager->SetStoreROOT(true);
+    }
+    else if(hasSuffix(outputFilename,".h5") ||
+            hasSuffix(outputFilename,".hdf5")) {
+        persistencyManager = new EDepSim::H5PersistencyManager();
+        persistencyManager->SetStoreHDF5(true);
+    }
+    else {
         persistencyManager = new EDepSim::PersistencyManager();
+        EDepSimWarn("No file format specified.  No output will be saved.");
+        outputFilename = "";
     }
 
     // Get the pointer to the UI manager.  This is used to control how
@@ -282,10 +293,8 @@ int main(int argc,char** argv) {
     // Set the defaults for the simulation.
     UI->ApplyCommand("/edep/control edepsim-defaults 1.0");
 
-    // Open the file if one was declared on the command line.
-    if (persistencyManager && ! outputFilename.empty()) {
+    if(!outputFilename.empty())
         UI->ApplyCommand("/edep/db/open "+outputFilename);
-    }
 
     std::signal(SIGILL,  SIG_DFL);
     std::signal(SIGBUS,  SIG_DFL);

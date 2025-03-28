@@ -32,7 +32,11 @@ public:
      
      TG4HitSegment() 
         : PrimaryId(0), EnergyDeposit(0), SecondaryDeposit(0),
-          TrackLength(0), Start(0,0,0,0), Stop(0,0,0,0) {}
+          TrackLength(0), Start(0,0,0,0), Stop(0,0,0,0), 
+          StartMomentum(0,0,0,0), StopMomentum(0,0,0,0),  
+          StartStatus(7), StartProcessType(0), StartProcessSubType(-1), //StartProcessName(""), 
+          StopStatus(7), StopProcessType(0), StopProcessSubType(-1)//, StopProcessName("")
+          {}
     virtual ~TG4HitSegment();
     
     /// The track id of the most important particle associated with this hit
@@ -58,11 +62,33 @@ public:
     /// that are included in this hit.
     double GetTrackLength() const {return TrackLength;}
 
+    unsigned short GetStartStatus() const {return StartStatus;}
+
+    unsigned short GetStartProcessType() const {return StartProcessType;}
+
+    int GetStartProcessSubType() const {return StartProcessSubType;}
+
+    //const std::string& GetStartProcessName() const {return StartProcessName;}
+
+    unsigned short GetStopStatus() const { return StopStatus;}
+
+    unsigned short GetStopProcessType() const {return StopProcessType;}
+
+    int GetStopProcessSubType() const {return StopProcessSubType;}
+
+    //const std::string& GetStopProcessName() const {return StopProcessName;}
+
     /// The starting position of the segment.
     const TLorentzVector& GetStart() const {return Start;}
 
     /// The stopping position of the segment.
     const TLorentzVector& GetStop() const {return Stop;}
+
+    /// The starting position of the segment.
+    const TLorentzVector& GetStartMomentum() const {return StartMomentum;}
+
+    /// The stopping position of the segment.
+    const TLorentzVector& GetStopMomentum() const {return StopMomentum;}
 
     /// The TrackId for each trajectory that contributed to this hit.  This
     /// could contain the TrackId of the primary particle, but not
@@ -113,6 +139,29 @@ private:
 
     /// The stopping position of the segment.
     TLorentzVector Stop;
+
+    /// The starting momentum of the segment.
+    TLorentzVector StartMomentum;
+
+    /// The stopping momentum of the segment.
+    TLorentzVector StopMomentum;
+
+    unsigned short StartStatus;
+
+    unsigned short StartProcessType;
+
+    int StartProcessSubType;
+
+    //std::string StartProcessName;
+
+    unsigned short StopStatus;
+
+    unsigned short StopProcessType;
+
+    int StopProcessSubType;
+
+    //std::string StopProcessName;    
+
 
     ClassDef(TG4HitSegment,1);
 };
