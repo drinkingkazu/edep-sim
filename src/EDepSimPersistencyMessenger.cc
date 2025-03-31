@@ -3,6 +3,8 @@
 
 #include "EDepSimPersistencyMessenger.hh"
 #include "EDepSimPersistencyManager.hh"
+#include "EDepSimLog.hh"
+
 
 #include <G4UIdirectory.hh>
 #include <G4UIcmdWithAString.hh>
@@ -184,14 +186,14 @@ void EDepSim::PersistencyMessenger::SetNewValue(G4UIcommand* command,
     else if (command == fROOTOutputCMD) {
         fPersistencyManager->SetStoreROOT(
             fROOTOutputCMD->GetNewBoolValue(newValue));
-            std::cout<<__LINE__<<" ROOT "<<fPersistencyManager->GetStoreROOT()
-            << " HDF5 "<<fPersistencyManager->GetStoreHDF5()<<std::endl;
+        EDepSimLog(" ROOT "<<fPersistencyManager->GetStoreROOT()
+        << " HDF5 "<<fPersistencyManager->GetStoreHDF5()<<std::endl);
     }
     else if (command == fHDF5OutputCMD) {
         fPersistencyManager->SetStoreHDF5(
             fHDF5OutputCMD->GetNewBoolValue(newValue));
-        std::cout<<__LINE__<<" ROOT "<<fPersistencyManager->GetStoreROOT()
-                       << " HDF5 "<<fPersistencyManager->GetStoreHDF5()<<std::endl;
+        EDepSimLog(" ROOT "<<fPersistencyManager->GetStoreROOT() 
+        << " HDF5 "<<fPersistencyManager->GetStoreHDF5()<<std::endl);
     }
     else {
         G4cerr << "EDepSim::PersistencyMessenger::SetNewValue "

@@ -1,6 +1,7 @@
 #ifndef H5DLPDATASETS_CXX
 #define H5DLPDATASETS_CXX
 #include "H5DLPDatasets.h"
+#include <stdexcept>
 
 namespace H5DLP {
     
@@ -26,7 +27,7 @@ namespace H5DLP {
     void EventDataset::Prepare(hid_t &file, const std::string name)
     {
         if(_compound_type)
-            throw std::exception();
+            throw std::runtime_error("dataset preparation already executed (cannot be done more than once)");
 
         // Define the compound datatype for the memory
         _compound_type = get_h5type<H5DLP::Event>();

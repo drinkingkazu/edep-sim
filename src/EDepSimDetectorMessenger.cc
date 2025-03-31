@@ -216,7 +216,7 @@ void EDepSim::DetectorMessenger::SetNewValue(G4UIcommand * cmd,
         EDepSim::RootGeometryManager::Get()->ShouldPrintMass(newValue);
     }
     else if (cmd == fValidateCmd) {
-        EDepSimLog("Geometry will be validated");
+        EDepSimLog("Geometry will be validated\n");
         fConstruction->ValidateGeometry();
     }
     else if (cmd == fExportCmd) {
@@ -259,7 +259,9 @@ void EDepSim::DetectorMessenger::SetNewValue(G4UIcommand * cmd,
         UI->ApplyCommand("/control/execute " + file);
     }
     else if (cmd == fStoreNeutralStepAsPointCmd) {
-        HitSegmentControl::GetME()->fStoreNeutralStepAsPoint = fStoreNeutralStepAsPointCmd->GetNewBoolValue(newValue);
+        bool value = fStoreNeutralStepAsPointCmd->GetNewBoolValue(newValue);
+        EDepSimLog("Set StoreNeutralStepAsPoint to " << value <<"\n");
+        HitSegmentControl::GetME()->fStoreNeutralStepAsPoint = value;
     }
     else if (cmd == fGDMLReadCmd) {
         G4GDMLParser* gdmlParser = fConstruction->GetGDMLParser();
@@ -273,8 +275,19 @@ void EDepSim::DetectorMessenger::SetNewValue(G4UIcommand * cmd,
     else if (cmd == fAvoidHitMergingCmd) {
         std::istringstream input((const char*)newValue);
         std::string sdName;
-        bool avoid;
-        input >> sdName >> avoid;
+        std::string avoid_str;
+        bool avoid = false;
+        input >> sdName >> avoid_str;
+        input >> sdName >> avoid_str;
+        if(avoid_str == "true" || avoid_str == "1" || avoid_str == "yes" || avoid_str == "on") {
+            avoid = true;
+        } else if(avoid_str == "false" || avoid_str == "0" || avoid_str == "no" || avoid_str == "off") {
+            avoid = false;
+        } else {
+            EDepSimError("Invalid value for /edep/avoidHitMerging: "
+                         << avoid_str);
+            throw std::runtime_error("Invalid input for avoidHitMerging");
+        }
         SDFactory factory("segment");
         SegmentSD* sd = dynamic_cast<SegmentSD*>(factory.MakeSD(sdName));
         if (sd) {

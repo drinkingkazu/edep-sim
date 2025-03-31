@@ -172,14 +172,16 @@ void EDepSim::HitSegment::AddStep(G4Step* theStep) {
         if(HitSegmentControl::GetME()->fStoreNeutralStepAsPoint){
             // Record it as the point energy deposition
             prePos = postPos;
+            stepLength = trackLength = 0.0;
+            EDepSimDebug("StoreNeutralStepAsPoint ... EDepSim::HitSegment:: " << particle->GetParticleName()
+            << " Deposited " << energyDeposit/MeV << " MeV");
         }else{
             double origStep = stepLength;
             G4ThreeVector dir = (postPos - prePos).unit();
             stepLength = trackLength = std::min(0.5*mm,0.8*origStep);
             prePos = postPos - stepLength*mm*dir;
-            std::cout << "EDepSim::HitSegment:: " << particle->GetParticleName() << " Deposited " << energyDeposit/MeV << " MeV" << std::endl << "    Original step: " << origStep/mm << " mm"<<std::endl<< "    New step: " << stepLength/mm << " mm"<<std::endl;
             EDepSimDebug("EDepSim::HitSegment:: " << particle->GetParticleName()
-                         << " Deposited " << energyDeposit/MeV << " MeV");
+            << " Deposited " << energyDeposit/MeV << " MeV");
             EDepSimDebug("    Original step: " << origStep/mm << " mm");
             EDepSimDebug("    New step: " << stepLength/mm << " mm");
         }
@@ -271,10 +273,11 @@ void EDepSim::HitSegment::AddStep(G4Step* theStep) {
         }
     }
 
+
+
     fEnergyDeposit += energyDeposit;
     fSecondaryDeposit += nonIonizingDeposit;
     fTrackLength += trackLength;
-
     EDepSimDebug("EDepSim::HitSegment:: Deposit " << particle->GetParticleName()
                  << " adds " << energyDeposit/MeV << " MeV"
                  << " to " << fContributors.front()

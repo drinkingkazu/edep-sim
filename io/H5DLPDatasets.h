@@ -90,7 +90,7 @@ namespace H5DLP {
     class VLArrayDataset {
 
     public:
-        VLArrayDataset() : _compound_type(0), _plist(0), _dataset(0), _vlen_type(0), _num_events(0) {}
+        VLArrayDataset() : _compound_type(0), _plist(0), _dataset(0), _vlen_type(0), _num_events(0), _num_written(0){}
         ~VLArrayDataset() { if(_compound_type) { this->Close(); } }
 
         /**
@@ -104,7 +104,7 @@ namespace H5DLP {
                 H5Dclose(_dataset);
             }
             _compound_type = _plist = _dataset = _vlen_type = 0;
-            _num_events = 0;
+            _num_events = _num_written = 0;
         }
 
         /**
@@ -142,7 +142,7 @@ namespace H5DLP {
                 _plist,
                 H5P_DEFAULT);
 
-            _num_events = 0;
+            _num_events = _num_written = 0;
 
             H5Sclose(space);
         }
@@ -160,6 +160,13 @@ namespace H5DLP {
          * @return size_t The number of events.
          */
         size_t GetNumEvents() const { return _num_events; }
+
+        /**
+         * @brief Get the total number of written elements in the dataset.
+         * 
+         * @return size_t The number of total elements written so far.
+         */
+        size_t GetNumWritten() const { return _num_written; }
 
         /**
          * @brief Add a unit data entry to the dataset.
@@ -234,6 +241,7 @@ namespace H5DLP {
             H5Sclose(dataspace);
             H5Dflush(_dataset);
 
+            _num_written += _data_v.size();
             _data_v.clear();
             _num_events += 1;
         }
@@ -242,6 +250,7 @@ namespace H5DLP {
         hid_t _compound_type, _plist, _dataset, _vlen_type;
         hvl_t _vlen_data[1];
         size_t _num_events;
+        size_t _num_written;
         std::vector<T> _data_v;
 
     };

@@ -68,7 +68,7 @@ void EDepSim::UserRunActionMessenger::SetNewValue(G4UIcommand* command,
     }
     else if (command == fShowRandomSeedCmd) {
         long seed = fUserRunAction->GetSeed();
-        EDepSimLog("### Random number seed: " << seed);
+        EDepSimLog("### Random number seed: " << seed <<"\n");
     }
     else if (command == fDetSimRunIdCmd) {
         int runId = fDetSimRunIdCmd->GetNewIntValue(newValue);

@@ -42,7 +42,7 @@ void EDepSim::UserRunAction::BeginOfRunAction(const G4Run* aRun) {
     } 
 #endif
 
-    EDepSimLog("### Run " << aRun->GetRunID() << " starting.");
+    EDepSimLog("### Run " << aRun->GetRunID() << " starting.\n");
 
 }
 
@@ -67,7 +67,7 @@ void EDepSim::UserRunAction::EndOfRunAction(const G4Run* aRun) {
 
 void EDepSim::UserRunAction::SetSeed(long seed) {
     if (seed<0) seed = -seed;
-    EDepSimLog("### Random seed number set to: " << seed);
+    EDepSimLog("### Random seed number set to: " << seed << "\n");
     G4Random::setTheSeed(seed);
 }
 
@@ -82,7 +82,7 @@ void EDepSim::UserRunAction::SetTimeSeed() {
     struct timeval buffer;
     gettimeofday(&buffer,NULL);
     EDepSimLog("### Set seed from local time: " << ctime(&buffer.tv_sec));
-    EDepSimLog("###      Micro-second offset: " << buffer.tv_usec);
+    EDepSimLog("###      Micro-second offset: " << buffer.tv_usec << "\n");
     seed = long(buffer.tv_sec + buffer.tv_usec);
 #else
 #warning Using seconds since epoch to seed the random generator.

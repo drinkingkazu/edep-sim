@@ -1,5 +1,5 @@
 #include "H5DLPFileStorage.h"
-
+#include <stdexcept>
 namespace H5DLP {
 
     FileStorage::FileStorage() : _file(0), _num_events(0)
@@ -8,7 +8,7 @@ namespace H5DLP {
     void FileStorage::OpenFile(std::string fname)
     {
         if(_file)
-            throw std::exception();
+            throw std::runtime_error("file is already open");
         
         _file = H5Fcreate(fname.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
 
@@ -17,40 +17,62 @@ namespace H5DLP {
         CreateGroup("event");
     }
 
+    template <typename DatasetType>
+    void FileStorage::CloseDataset() {
+        std::cout<<"    Closing dataset type: " 
+                 << H5DLP::get_name<DatasetType>() 
+                 << " (empty datasets will be deleted)" 
+                 << std::endl;
+        auto& dataset_map = GetDatasetMap<DatasetType>();
+        size_t ctr_empty=0;
+        size_t ctr_saved=0;
+        for(auto &it : dataset_map) {
+            for(auto &it2 : it.second) {
+                if(it2.second.GetNumWritten() < 1) {
+                    // delete empty datasets
+                    hid_t target = _file;
+                    if(!it.first.empty()) target = _gmap[it.first];
+                    if(H5Ldelete(target, it2.first.c_str(), H5P_DEFAULT) < 0) {
+                        std::cerr << "    Failed to delete empty dataset " 
+                                  << it.first << "/" << it2.first 
+                                  << " from file." << std::endl;
+                    }
+                    ctr_empty++; // Count empty datasets
+                }else{
+                    std::cout << "        Saved dataset " 
+                                  << it.first << "/" << it2.first 
+                                  << std::endl;
+                    ctr_saved++; // Count saved datasets
+                }
+                it2.second.Close(); // Close each dataset
+            }
+        }
+        std::cout << "        Saved " << ctr_saved << ", deleted " 
+        << ctr_empty << " empty datasets." << std::endl;
+    }
+        
+
     void FileStorage::CloseFile()
     {   
         if(!_file)
             return;
-        for(auto &it : _gmap) {
-            H5Gclose(it.second);
-        }
-        for(auto &it : _dmap_part) {
-            for(auto &it2 : it.second) {
-                it2.second.Close();
-            }
-        }
-        for(auto &it : _dmap_step) {
-            for(auto &it2 : it.second) {
-                it2.second.Close();
-            }
-        }
-        for(auto &it : _dmap_prim) {
-            for(auto &it2 : it.second) {
-                it2.second.Close();
-            }
-        }
-        for(auto &it : _dmap_vertex) {
-            for(auto &it2 : it.second) {
-                it2.second.Close();
-            }
-        }
+        std::cout<<"Closing HDF5 file... (empty datasets will be deleted and not stored)"<<std::endl;
+        CloseDataset<H5DLP::Particle>();
+        CloseDataset<H5DLP::PStep>();
+        CloseDataset<H5DLP::Primary>();
+        CloseDataset<H5DLP::Vertex>();
         for(auto &it : _dmap_ass) {
             it.second.Close();
         }
         if(_event.IsOpen())
             _event.Close();
+
+        for(auto &it : _gmap) {
+            H5Gclose(it.second);
+        }
         if(_file)
             H5Fclose(_file);
+
         _file = 0;
         _num_events=0;
         _gmap.clear();
@@ -123,8 +145,7 @@ namespace H5DLP {
     
         if (!ExistsGroup(group_name)) {
             if (_num_events) {
-                std::cerr << "Error: File already has data, cannot create new group." << std::endl;
-                throw std::exception();
+                throw std::runtime_error("Error: File already has data, cannot create new group.");
             }
             this->CreateGroup(group_name);
         }
@@ -140,22 +161,22 @@ namespace H5DLP {
                     return iit2->second;
                 } else {
                     std::cerr << "Error: Dataset group " << group_name.c_str()
-                              << " and name " << name.c_str() << " already exists but with different type."
-                              << std::endl;
-                    throw std::exception();
+                    << " and name " << name.c_str() << " already exists but with different type."
+                    << std::endl;
+                    throw std::runtime_error("dataset not found");
                 }
             } else {
                 std::cerr << "Error: Dataset group " << group_name.c_str()
                           << " and name " << name.c_str() << " already exists but with different type."
                           << std::endl;
-                throw std::exception();
+                throw std::runtime_error("dataset not found");
             }
         }
     
         // Create the dataset if it doesn't exist
         if (_num_events) {
             std::cerr << "Error: File already has data, cannot create new dataset." << std::endl;
-            throw std::exception();
+            throw std::runtime_error("cannot create new dataset instance");
         }
     
         auto &ds = dataset_map[group_name][name];
@@ -182,16 +203,16 @@ namespace H5DLP {
             }else{
                 std::cerr << "Error: the group/name " << group_name.c_str() << "/" << name.c_str()
                 << "already exists for a different type dataset." << std::endl;
-                throw std::exception();
+                throw std::runtime_error("event dataset not found");
             }
         }
 
         if(_num_events) {
             std::cerr << "Error: File already has data, cannot create new event." << std::endl;
-            throw std::exception();
+            throw std::runtime_error("cannot create new event instance");
         }
         _event.Prepare(_gmap["event"], name);
-        //_dmap_name[group_name].insert(name);
+        _dmap_name[group_name].insert(name);
         return _event.Get();
     }
 
@@ -204,7 +225,7 @@ namespace H5DLP {
 
         if(_num_events) {
             std::cerr << "Error: File already has data, cannot create new ass." << std::endl;
-            throw std::exception();
+            throw std::runtime_error("cannot create new association instance");
         }
 
         auto &ds = _dmap_ass[name];
@@ -223,11 +244,11 @@ namespace H5DLP {
                     std::cerr << "Error: Number of events mismatch in " << it.first.c_str() 
                     << "/" << it2.first.c_str() << " (expected " << _num_events 
                     << " but found " << it2.second.GetNumEvents() << ")" << std::endl;
-                    throw std::exception();
+                    throw std::logic_error("dataset's event count inconsistency detected");
                 }
                 if(!it2.second.IsOpen()){
                     std::cerr << "Error: " << it2.first.c_str() <<" dataset is not open." << std::endl;
-                    throw std::exception();
+                    throw std::logic_error("dataset's open state inconsistency detected");
                 }
                 it2.second.Write();
             }
@@ -240,11 +261,11 @@ namespace H5DLP {
                 std::cerr << "Error: Number of events mismatch in ass/" << it.first.c_str() 
                 << " (expected " << _num_events << " but found " << it.second.GetNumEvents() 
                 << ")" << std::endl;
-                throw std::exception();
+                throw std::runtime_error("association's event count inconsistency detected");
             }
             if(!it.second.IsOpen()){
                 std::cerr << "Error: ass/" << it.first.c_str() <<" dataset is not open." << std::endl;
-                throw std::exception();
+                throw std::runtime_error("association's open state inconsistency detected");
             }
             it.second.Write();
         }
@@ -267,15 +288,15 @@ namespace H5DLP {
     {
         if(!_file) {
             std::cerr << "Error: File not opened." << std::endl;
-            throw std::exception();
+            throw std::runtime_error("failed to create a new group");
         }
         if(_num_events) {
             std::cerr << "Error: File already has data, cannot create new group." << std::endl;
-            throw std::exception();
+            throw std::runtime_error("failed to create a new group");
         }
         if(group_name.empty()) {
             std::cerr << "Error: Group name is empty." << std::endl;
-            throw std::exception();
+            throw std::runtime_error("failed to create a new group");
         }
         auto it = _gmap.find(group_name);
         if(it == _gmap.end()) {

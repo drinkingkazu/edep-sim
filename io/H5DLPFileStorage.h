@@ -97,6 +97,14 @@ namespace H5DLP {
             std::map<std::string, std::map<std::string, H5DLP::VLArrayDataset<DatasetType> > >& GetDatasetMap();
 
             /**
+             * @brief Close all datasets of the type T.
+             * 
+             * @tparam DatasetType The type of the dataset. 
+             */
+            template <typename DatasetType>
+            void CloseDataset();
+
+            /**
              * @brief Store the dataset for a given DatasetType.
              * 
              * @tparam DatasetType The type of the dataset.

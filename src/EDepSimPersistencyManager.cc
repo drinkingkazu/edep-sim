@@ -33,6 +33,7 @@
 #include <G4PhysicalConstants.hh>
 
 #include <memory>
+#include <chrono>
 
 // Handle foraging the edep-sim information into convenience classes that are
 // independent of geant4 and edep-sim internal dependencies.  The classes are
@@ -203,11 +204,14 @@ bool EDepSim::PersistencyManager::UpdateSummaries(const G4Event* event) {
     const G4Run* runInfo = G4RunManager::GetRunManager()->GetCurrentRun();
 
     // Summarize the trajectories first so that fTrackIdMap is filled.
+    EDepSimDebug("   "<<__PRETTY_FUNCTION__);
+
     MarkTrajectories(event);
 
     BuildIndexMap(event);
 
     if(fROOTOutput) {
+        EDepSimDebug("   Constructing the outputs for ROOT");
 
         fEventSummary.RunId = runInfo->GetRunID();
         fEventSummary.EventId = event->GetEventID();
@@ -220,16 +224,17 @@ bool EDepSim::PersistencyManager::UpdateSummaries(const G4Event* event) {
         }
 
         SummarizePrimaries(fEventSummary.Primaries,event->GetPrimaryVertex());
-        EDepSimLog("   Primaries " << fEventSummary.Primaries.size());
+        EDepSimDebug("      Primaries " << fEventSummary.Primaries.size());
 
         SummarizeTrajectories(fEventSummary.Trajectories,event);
-        EDepSimLog("   Trajectories " << fEventSummary.Trajectories.size());
+        EDepSimDebug("      Trajectories " << fEventSummary.Trajectories.size());
 
         SummarizeSegmentDetectors(fEventSummary.SegmentDetectors, event);
-        EDepSimLog("   Segment Detectors "
+        EDepSimDebug("      Segment Detectors "
                 << fEventSummary.SegmentDetectors.size());
 
     }else{
+        EDepSimDebug("   Constructing the outputs for HDF5");
 
         if(GetRequireEventsWithHits()) {
             EDepSimError("   HDF5 mode does not support /edep/db/set/requireEventsWithHits");
@@ -243,19 +248,20 @@ bool EDepSim::PersistencyManager::UpdateSummaries(const G4Event* event) {
         auto& dest_prim   = fH5Summary.GetVLArray<H5DLP::Primary>("geant4","primary");
         auto& dest_vertex = fH5Summary.GetVLArray<H5DLP::Vertex>("geant4","vertex");
         SummarizePrimariesH5(dest_prim, dest_vertex, event->GetPrimaryVertex());
-        EDepSimLog("   Primaries " << dest_prim.Size());
+        EDepSimDebug("      Primaries " << dest_prim.Size());
 
         header.num_vertices = dest_vertex.Size();
         header.num_primaries = dest_prim.Size();
 
         auto& dest_part = fH5Summary.GetVLArray<H5DLP::Particle>("geant4","particle");
         SummarizeTrajectoriesH5(dest_part, event);
-        EDepSimLog("   Trajectories " << dest_part.Size());
+        EDepSimDebug("      Trajectories " << dest_part.Size());
 
         header.num_particles = dest_part.Size();
 
         SummarizeSegmentDetectorsH5(fH5Summary, header, event);
     }
+    EDepSimDebug("   "<<__PRETTY_FUNCTION__<<" done");
 
     return true;
 }
@@ -265,8 +271,10 @@ void EDepSim::PersistencyManager::SummarizePrimariesH5(
     H5DLP::VLArrayDataset<H5DLP::Primary>& dest_part,
     H5DLP::VLArrayDataset<H5DLP::Vertex>& dest,
     const G4PrimaryVertex* src) {
+    EDepSimDebug("   "<<__PRETTY_FUNCTION__);
 
     if (!src) return;
+    auto start = std::chrono::high_resolution_clock::now();
 
     int interaction_id = 0;
 
@@ -345,14 +353,20 @@ void EDepSim::PersistencyManager::SummarizePrimariesH5(
         dest.Add(vtx);
         src = src->GetNext();
     }
+    auto end = std::chrono::high_resolution_clock::now();
+    EDepSimLog("   Time report - SummarizePrimariesH5: " 
+        << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() 
+        << " [ms]");
 }
 
 void EDepSim::PersistencyManager::SummarizePrimaries(
     std::vector<TG4PrimaryVertex>& dest,
     const G4PrimaryVertex* src) {
     dest.clear();
+    EDepSimDebug("   "<<__PRETTY_FUNCTION__);
 
     if (!src) return;
+    auto start = std::chrono::high_resolution_clock::now();
 
     while (src) {
         TG4PrimaryVertex vtx;
@@ -411,12 +425,20 @@ void EDepSim::PersistencyManager::SummarizePrimaries(
         dest.push_back(vtx);
         src = src->GetNext();
     }
+    auto end = std::chrono::high_resolution_clock::now();
+    EDepSimLog("   Time report - SummarizePrimaries: " 
+        << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() 
+        << " [ms]");
 }
 
 void EDepSim::PersistencyManager::SummarizeTrajectories(
     TG4TrajectoryContainer& dest,
     const G4Event* event) {
     dest.clear();
+    EDepSimDebug("   "<<__PRETTY_FUNCTION__);
+
+    auto start = std::chrono::high_resolution_clock::now();
+
     //MarkTrajectories(event);
 
     const G4TrajectoryContainer* trajectories = event->GetTrajectoryContainer();
@@ -436,12 +458,16 @@ void EDepSim::PersistencyManager::SummarizeTrajectories(
          ++t) {
         EDepSim::Trajectory* ndTraj = dynamic_cast<EDepSim::Trajectory*>(*t);
 
+        int track_id = ndTraj->GetTrackID();
+
         // Check if the trajectory should be saved.
-        if(fTrack2OutputIndex[ndTraj->GetTrackID()]==-1)
+        if(fTrack2OutputIndex.size() <= track_id) 
+            continue;
+        if(fTrack2OutputIndex[track_id]==-1)
             continue;
         
-        if(max_track_id < ndTraj->GetTrackID())
-            max_track_id = ndTraj->GetTrackID();
+        if(max_track_id < track_id)
+            max_track_id = track_id;
 
         // Set the particle type information.
         G4ParticleDefinition* part
@@ -454,7 +480,7 @@ void EDepSim::PersistencyManager::SummarizeTrajectories(
         }
 
         TG4Trajectory traj;
-        traj.TrackId = ndTraj->GetTrackID();
+        traj.TrackId = track_id;
         traj.Name = ndTraj->GetParticleName();
         traj.PDGCode = ndTraj->GetPDGEncoding();
         traj.ParentId = ndTraj->GetParentID();
@@ -495,12 +521,19 @@ void EDepSim::PersistencyManager::SummarizeTrajectories(
         t->TrackId  = fTrack2OutputIndex[t->TrackId];
         t->ParentId = fTrack2OutputIndex[t->ParentId];
     }
-
+    auto end = std::chrono::high_resolution_clock::now();
+    EDepSimLog("   Time report - SummarizeTrajectories: " 
+        << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() 
+        << " [ms]");
 }
 
 void EDepSim::PersistencyManager::SummarizeTrajectoriesH5(
     H5DLP::VLArrayDataset<H5DLP::Particle>& dest,
     const G4Event* event) {
+
+    EDepSimDebug("   "<<__PRETTY_FUNCTION__);
+
+    auto start = std::chrono::high_resolution_clock::now();
 
     const G4TrajectoryContainer* trajectories = event->GetTrajectoryContainer();
     if (!trajectories) {
@@ -522,11 +555,29 @@ void EDepSim::PersistencyManager::SummarizeTrajectoriesH5(
         EDepSim::Trajectory* ndTraj = dynamic_cast<EDepSim::Trajectory*>(*t);
 
         // Check if the trajectory should be saved.
-        if(fTrack2OutputIndex[ndTraj->GetTrackID()]==-1)
+        int track_id = ndTraj->GetTrackID();
+        if(fTrack2OutputIndex.size() <= track_id) 
+        {   /*
+            EDepSim::TrajectoryPoint* edepPoint
+            = dynamic_cast<EDepSim::TrajectoryPoint*>(ndTraj->GetPoint(0));
+            G4String prevVolumeName = edepPoint->GetPhysVolName();
+            std::cout<<"Found a track ID " << track_id << " > " << fTrack2OutputIndex.size() 
+                     << " (size of fTrack2OutputIndex). This means that the track id was not mapped properly. " 
+                     << std::endl;
+            std::cout<<"  PDG "<<ndTraj->GetPDGEncoding()
+            << " Px " << ndTraj->GetInitialMomentum().x()
+            << " Py " << ndTraj->GetInitialMomentum().y()
+            << " Pz " << ndTraj->GetInitialMomentum().z()
+            << " volume: "  << prevVolumeName
+            << std::endl;
+            */
+            continue;
+        }
+        if(fTrack2OutputIndex[track_id]==-1)
             continue;
         
-        if(max_track_id < ndTraj->GetTrackID())
-            max_track_id = ndTraj->GetTrackID();
+        if(max_track_id < track_id)
+            max_track_id = track_id;
 
         // Set the particle type information.
         G4ParticleDefinition* g4part
@@ -540,7 +591,7 @@ void EDepSim::PersistencyManager::SummarizeTrajectoriesH5(
 
         H5DLP::Particle part;
 
-        part.track_id = ndTraj->GetTrackID();
+        part.track_id = track_id;
         part.mass = g4part->GetPDGMass();
         part.pdg = ndTraj->GetPDGEncoding();
         part.parent_track_id = ndTraj->GetParentID();
@@ -595,22 +646,29 @@ void EDepSim::PersistencyManager::SummarizeTrajectoriesH5(
     array2.resize(array1.size());
     for(size_t i=0; i<array1.size(); ++i) {
         auto& part = array1[i];
-        int output_index = fTrack2OutputIndex[part.track_id];
-        array2[output_index] = part;
+        int output_index = fTrack2OutputIndex.at(part.track_id);
+        array2.at(output_index) = part;
     }
 
     /// Rewrite the track ids so that they are consecutive.
     for (auto& part : array2) {
-        part.track_id = fTrack2OutputIndex[part.track_id];
-        part.parent_track_id = fTrack2OutputIndex[part.parent_track_id];
-        part.ancestor_track_id = fTrack2OutputIndex[part.ancestor_track_id];
+        part.track_id = fTrack2OutputIndex.at(part.track_id);
+        part.parent_track_id = fTrack2OutputIndex.at(part.parent_track_id);
+        part.ancestor_track_id = fTrack2OutputIndex.at(part.ancestor_track_id);
         dest.Add(part);
     }
+
+    auto end = std::chrono::high_resolution_clock::now();
+    EDepSimLog("   Time report - SummarizeTrajectoriesH5: " 
+        << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() 
+        << " [ms]");
 
 }
 
 void EDepSim::PersistencyManager::BuildIndexMap(const G4Event* event) {
+    EDepSimDebug("   "<<__PRETTY_FUNCTION__);
 
+    auto start = std::chrono::high_resolution_clock::now();
     std::fill(fTrack2OutputIndex.begin(), fTrack2OutputIndex.end(), -1);
     std::fill(fTrack2InputIndex.begin(),  fTrack2InputIndex.end(),  -1);
 
@@ -662,16 +720,22 @@ void EDepSim::PersistencyManager::BuildIndexMap(const G4Event* event) {
         output_count++;
     }
 
-    fOutputIndex2Track.resize(output_count,-1);
+    fOutputIndex2Track.resize(std::max((int)(fOutputIndex2Track.size()),output_count),-1);
     std::fill(fOutputIndex2Track.begin(), fOutputIndex2Track.end(), -1);
 
     int output_index = 0;
     for (int track_id=0; track_id<max_track_id; ++track_id) {
-        if (fTrack2InputIndex[track_id] == -1) continue;
+        if (fTrack2InputIndex[track_id] <0) continue;
         fTrack2OutputIndex[track_id] = output_index;
         fOutputIndex2Track[output_index] = track_id;
         output_index++;
+        //std::cout<<track_id<<std::endl;
     }
+    //std::cout<<"Size: "<<fTrack2OutputIndex.size()<<" "<<fOutputIndex2Track.size()<<" track id: "<<max_track_id<<std::endl;
+    auto end = std::chrono::high_resolution_clock::now();
+    EDepSimLog("   Time report - BuildIndexMap: " 
+        << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() 
+        << " [ms]");
 }
 
 void EDepSim::PersistencyManager::MarkTrajectories(const G4Event* event) {
@@ -680,6 +744,8 @@ void EDepSim::PersistencyManager::MarkTrajectories(const G4Event* event) {
         EDepSimVerbose("No Trajectories ");
         return;
     }
+    EDepSimDebug("   "<<__PRETTY_FUNCTION__);
+    auto start = std::chrono::high_resolution_clock::now();
 
     // Go through all of the trajectories and save:
     //
@@ -844,6 +910,10 @@ void EDepSim::PersistencyManager::MarkTrajectories(const G4Event* event) {
             }
         }
     }
+    auto end = std::chrono::high_resolution_clock::now();
+    EDepSimLog("   Time report - MarkTrajectories: " 
+        << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() 
+        << " [ms]");
 }
 
 void EDepSim::PersistencyManager::CopyTrajectoryPoints(TG4Trajectory& traj,
@@ -884,6 +954,9 @@ void
 EDepSim::PersistencyManager::SummarizeSegmentDetectors(
     TG4HitSegmentDetectors& dest,
     const G4Event* event) {
+    EDepSimDebug("   "<<__PRETTY_FUNCTION__);
+
+    auto start = std::chrono::high_resolution_clock::now();
     dest.clear();
 
     G4HCofThisEvent* HCofEvent = event->GetHCofThisEvent();
@@ -902,6 +975,10 @@ EDepSim::PersistencyManager::SummarizeSegmentDetectors(
         if (!hitSeg) continue;
         SummarizeHitSegments(dest[SDname],g4Hits);
     }
+    auto end = std::chrono::high_resolution_clock::now();
+    EDepSimLog("   Time report - SummarizeSegmentDetectors: " 
+        << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() 
+        << " [ms]");
 }
 
 void
@@ -909,6 +986,9 @@ EDepSim::PersistencyManager::SummarizeSegmentDetectorsH5(
     H5DLP::FileStorage& dest,
     H5DLP::Event& header,
     const G4Event* event) {
+    EDepSimDebug("   "<<__PRETTY_FUNCTION__);
+
+    auto start = std::chrono::high_resolution_clock::now();
 
     header.num_steps = 0;
     auto& part_v = dest.GetVLArray<H5DLP::Particle>("geant4","particle");
@@ -935,14 +1015,20 @@ EDepSim::PersistencyManager::SummarizeSegmentDetectorsH5(
         if (!hitSeg) continue;
 
         SummarizeHitSegmentsH5(dest_sd,ass_v,part_v,g4Hits);
-        EDepSimLog("   Segment Detector " << SDname.c_str() << " got " << dest_sd.Size() << " steps");
+        EDepSimDebug("      Segment Detector " << SDname.c_str() << " got " << dest_sd.Size() << " steps");
         header.num_steps += dest_sd.Size();
     }
+    auto end = std::chrono::high_resolution_clock::now();
+    EDepSimLog("   Time report - SummarizeSegmentDetectorsH5: " 
+        << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() 
+        << " [ms]");
 }
 
 void
 EDepSim::PersistencyManager::SummarizeHitSegments(TG4HitSegmentContainer& dest,
-                                             G4VHitsCollection* g4Hits) {
+    G4VHitsCollection* g4Hits) {
+    EDepSimDebug("   "<<__PRETTY_FUNCTION__);
+
     dest.clear();
 
     EDepSim::HitSegment* g4Hit = dynamic_cast<EDepSim::HitSegment*>(g4Hits->GetHit(0));
@@ -989,23 +1075,21 @@ EDepSim::PersistencyManager::SummarizeHitSegmentsH5(H5DLP::VLArrayDataset<H5DLP:
     H5DLP::VLArrayDataset<H5DLP::Ass>& ass_v,
     H5DLP::VLArrayDataset<H5DLP::Particle>& part_v,
     G4VHitsCollection* g4Hits) {
+    EDepSimDebug("   "<<__PRETTY_FUNCTION__);
 
     EDepSim::HitSegment* g4Hit = dynamic_cast<EDepSim::HitSegment*>(g4Hits->GetHit(0));
     if (!g4Hit) return;
 
     // Sort the order of an outer array
-    std::vector<size_t> hindex2oindex, reservation;
-    hindex2oindex.reserve(1000000);
+    std::vector<size_t> reservation;
     reservation.resize(fOutputIndex2Track.size()+1,0);
 
     for(size_t i=0; i<g4Hits->GetSize(); ++i) {
         g4Hit = dynamic_cast<EDepSim::HitSegment*>(g4Hits->GetHit(i));
         for(auto const& track_id : g4Hit->GetContributors()) {
             if(track_id >= (int)(fTrack2OutputIndex.size()) || fTrack2OutputIndex[track_id] == -1) {
-                hindex2oindex.push_back(fOutputIndex2Track.size());
                 reservation[fOutputIndex2Track.size()]++;
             }else{
-                hindex2oindex.push_back(fTrack2OutputIndex[track_id]);
                 reservation[fTrack2OutputIndex[track_id]]++;
             }
         }
@@ -1026,14 +1110,16 @@ EDepSim::PersistencyManager::SummarizeHitSegmentsH5(H5DLP::VLArrayDataset<H5DLP:
         ass_v.Add(ass);
     }
 
+    size_t total_array_size=0;
     for (std::size_t h=0; h<g4Hits->GetSize(); ++h) {
         g4Hit = dynamic_cast<EDepSim::HitSegment*>(g4Hits->GetHit(h));
         H5DLP::PStep step;
         //step.primary_id = fTrackIdMap[g4Hit->GetPrimaryTrajectoryId()];
-        step.x = g4Hit->GetStart().x();
-        step.y = g4Hit->GetStart().y();
-        step.z = g4Hit->GetStart().z();
-        step.t = g4Hit->GetStart().t();
+        auto mid_point = g4Hit->GetStart() + (g4Hit->GetStop() - g4Hit->GetStart())/2.;
+        step.x = mid_point.x();
+        step.y = mid_point.y();
+        step.z = mid_point.z();
+        step.t = mid_point.t();
         step.theta = g4Hit->GetStartMomentum().theta();
         step.phi = g4Hit->GetStartMomentum().phi();
         step.p = g4Hit->GetStartMomentum().mag();
@@ -1050,8 +1136,10 @@ EDepSim::PersistencyManager::SummarizeHitSegmentsH5(H5DLP::VLArrayDataset<H5DLP:
             size_t output_index;
             if(step.track_id >= (int)(fTrack2OutputIndex.size()) || fTrack2OutputIndex[step.track_id] == -1) {
                 output_index = fOutputIndex2Track.size();
+                step.track_id = H5DLP::kINVALID_INT;
             }else{
                 output_index = fTrack2OutputIndex[step.track_id];
+                step.track_id = output_index;
             }
 
             step.ancestor_track_id = H5DLP::kINVALID_INT;
@@ -1061,9 +1149,11 @@ EDepSim::PersistencyManager::SummarizeHitSegmentsH5(H5DLP::VLArrayDataset<H5DLP:
                 step.pdg = part_v.At(output_index).pdg;
             }
             steps_v[output_index].push_back(step);
-        }
+            total_array_size++;
+        }    
     }
 
+    dest.Reserve(total_array_size);
     for(auto const& steps : steps_v) {
         dest.Add(steps);
     }

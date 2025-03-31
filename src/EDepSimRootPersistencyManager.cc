@@ -40,6 +40,8 @@ bool EDepSim::RootPersistencyManager::IsOpen() {
 }
 
 bool EDepSim::RootPersistencyManager::Open(G4String filename) {
+    EDepSimDebug("   "<<__PRETTY_FUNCTION__);
+
     if (fOutput) {
         EDepSimLog("EDepSim::RootPersistencyManager::Open "
                  << "-- Delete current file pointer" );
@@ -63,11 +65,13 @@ bool EDepSim::RootPersistencyManager::Open(G4String filename) {
     fEventTree->Branch("Event","TG4Event",&pEvent);
        
     fEventsNotSaved = 0;
-
+    EDepSimDebug("   "<<__PRETTY_FUNCTION__<<" done");
     return true;
 }
 
 bool EDepSim::RootPersistencyManager::Close() {
+    EDepSimDebug("   "<<__PRETTY_FUNCTION__);
+
     if (!fOutput) {
         EDepSimError("EDepSim::RootPersistencyManager::Close "
                    << "-- No Output File");
@@ -80,11 +84,14 @@ bool EDepSim::RootPersistencyManager::Close() {
     fOutput->Close();
 
     fEventTree = NULL;
+    EDepSimDebug("   "<<__PRETTY_FUNCTION__<<" done");
 
     return true;
 }
 
 bool EDepSim::RootPersistencyManager::Store(const G4Event* anEvent) {
+    EDepSimDebug("   "<<__PRETTY_FUNCTION__);
+
     if (!fOutput) {
         EDepSimError("EDepSim::RootPersistencyManager::Store "
                    << "-- No Output File");
@@ -114,6 +121,7 @@ bool EDepSim::RootPersistencyManager::Store(const G4Event* anEvent) {
             }
         }
     }
+    EDepSimDebug("   "<<__PRETTY_FUNCTION__<<" done");
 
     return true;
 }
@@ -123,6 +131,7 @@ bool EDepSim::RootPersistencyManager::Store(const G4Run*) {
 }
 
 bool EDepSim::RootPersistencyManager::Store(const G4VPhysicalVolume*) {
+    EDepSimDebug("   "<<__PRETTY_FUNCTION__);
     if (!fOutput) {
         EDepSimError("EDepSim::RootPersistencyManager::Store "
                    << "-- No Output File");
@@ -135,6 +144,8 @@ bool EDepSim::RootPersistencyManager::Store(const G4VPhysicalVolume*) {
     }
     fOutput->cd();
     gGeoManager->Write();
+    EDepSimDebug("   "<<__PRETTY_FUNCTION__<<" done");
+
     return true;
 }
 

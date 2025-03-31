@@ -66,13 +66,14 @@ G4bool EDepSim::SegmentSD::ProcessHits(G4Step* theStep,
 
     // Check to see if the last hit in the vector of hits needs to be
     // expanded.
+    /*
     if (!fAvoidMerging && 0<=fLastHit && fLastHit < (int) fHits->entries()) {
         EDepSim::HitSegment *tmpHit = (*fHits)[fLastHit];
         if (tmpHit->SameHit(theStep)) {
             currentHit = tmpHit;
         }
     }
-    
+    */
     // If a hit wasn't found, create one.
     if (!currentHit) {
         currentHit = new EDepSim::HitSegment(fMaximumHitSagitta,

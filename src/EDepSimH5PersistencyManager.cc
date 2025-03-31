@@ -32,6 +32,8 @@ EDepSim::H5PersistencyManager::~H5PersistencyManager() {
 bool EDepSim::H5PersistencyManager::IsOpen() { if (fH5Summary.IsOpen()) fH5Summary.CloseFile(); }
 
 bool EDepSim::H5PersistencyManager::Open(G4String filename) {
+    EDepSimDebug("   "<<__PRETTY_FUNCTION__);
+
     if (fH5Summary.IsOpen()) {
         EDepSimError("EDepSim::H5PersistencyManager::Open "
                  << "-- Close current file" );
@@ -50,22 +52,28 @@ bool EDepSim::H5PersistencyManager::Open(G4String filename) {
     fH5Summary.OpenFile(GetFilename());
        
     fEventsNotSaved = 0;
+    EDepSimDebug("   "<<__PRETTY_FUNCTION__<<" done");
 
     return true;
 }
 
 bool EDepSim::H5PersistencyManager::Close() {
+    EDepSimDebug("   "<<__PRETTY_FUNCTION__);
+
     if (!fH5Summary.IsOpen()) {
         EDepSimError("EDepSim::H5PersistencyManager::Close "
                    << "-- No Output File");
         return false;
     }
     fH5Summary.CloseFile();
+    EDepSimDebug("   "<<__PRETTY_FUNCTION__<<" done");
 
     return true;
 }
 
 bool EDepSim::H5PersistencyManager::Store(const G4Event* anEvent) {
+    EDepSimDebug("   "<<__PRETTY_FUNCTION__);
+
     if (!fH5Summary.IsOpen()) {
         EDepSimError("EDepSim::H5PersistencyManager::Store "
                    << "-- No Output File");
@@ -94,6 +102,7 @@ bool EDepSim::H5PersistencyManager::Store(const G4Event* anEvent) {
             }
         }
     }
+    EDepSimDebug("   "<<__PRETTY_FUNCTION__<<" done");
 
     return true;
 }
@@ -103,6 +112,8 @@ bool EDepSim::H5PersistencyManager::Store(const G4Run*) {
 }
 
 bool EDepSim::H5PersistencyManager::Store(const G4VPhysicalVolume*) {
+    EDepSimDebug("   "<<__PRETTY_FUNCTION__);
+
     if (!fH5Summary.IsOpen()) {
         EDepSimError("EDepSim::H5PersistencyManager::Store "
                    << "-- No Output File");
@@ -114,6 +125,8 @@ bool EDepSim::H5PersistencyManager::Store(const G4VPhysicalVolume*) {
         return false; 
     }
     //gGeoManager->Write();
+    EDepSimDebug("   "<<__PRETTY_FUNCTION__<<" done");
+
     return true;
 }
 

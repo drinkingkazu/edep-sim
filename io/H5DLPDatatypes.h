@@ -30,6 +30,19 @@ namespace H5DLP {
     hid_t get_h5type();
 
     /**
+     * @brief Get the dataset name for a given type
+     * 
+     * @tparam T The C++ type to get the name for.
+     * @return std::string The name of the dataset for the given type.
+     */
+    template <typename T>
+    std::string get_name();
+
+    /////////////////////////////////////////////////////////////////////////////////////
+    // Association structure
+    /////////////////////////////////////////////////////////////////////////////////////
+
+    /**
      * @brief Structure representing an association as a slice of another array.
      */
     struct Ass {
@@ -52,6 +65,18 @@ namespace H5DLP {
         H5Tinsert(compound_type, "end",   HOFFSET(H5DLP::Ass, end  ), H5T_NATIVE_ULONG);
         return compound_type;
     };
+
+    /**
+     * @brief Get the name for Ass class
+     * 
+     * @return std::string The name of the class.
+     */
+    template<>
+    inline std::string get_name<Ass>() { return "Ass"; }
+
+    /////////////////////////////////////////////////////////////////////////////////////
+    // Particle step (segment) structure
+    /////////////////////////////////////////////////////////////////////////////////////
 
     /**
      * @brief Structure representing a step in a particle's path.
@@ -115,6 +140,18 @@ namespace H5DLP {
 
         return compound_type;
     };
+
+    /**
+     * @brief Get the name for PStep class
+     * 
+     * @return std::string The name of the class.
+     */
+    template<>
+    inline std::string get_name<PStep>() { return "PStep"; }
+
+    /////////////////////////////////////////////////////////////////////////////////////
+    // Particle structure
+    /////////////////////////////////////////////////////////////////////////////////////
 
     /**
      * @brief Structure representing a particle.
@@ -209,6 +246,12 @@ namespace H5DLP {
         return compound_type;
     };
 
+    template<>
+    inline std::string get_name<Particle>() { return "Particle"; }
+
+    /////////////////////////////////////////////////////////////////////////////////////
+    // Primary (particle) structure
+    /////////////////////////////////////////////////////////////////////////////////////
 
     /**
      * @brief Structure representing a Primary (particle).
@@ -258,6 +301,12 @@ namespace H5DLP {
         return compound_type;
     };
 
+    template<>
+    inline std::string get_name<Primary>() { return "Primary"; }
+
+    /////////////////////////////////////////////////////////////////////////////////////
+    // Vertex information structure
+    /////////////////////////////////////////////////////////////////////////////////////
 
     /**
      * @brief Structure representing a vertex.
@@ -325,6 +374,13 @@ namespace H5DLP {
         return compound_type;
     };
 
+    template<>
+    inline std::string get_name<Vertex>() { return "Vertex"; }
+
+    /////////////////////////////////////////////////////////////////////////////////////
+    // Event information structure
+    /////////////////////////////////////////////////////////////////////////////////////
+
     /**
      * @brief Structure representing an event.
      */
@@ -340,6 +396,7 @@ namespace H5DLP {
         num_vertices(kINVALID_INT), num_primaries(kINVALID_INT),
         num_particles(kINVALID_INT), num_steps(kINVALID_INT) {} ///< Default constructor
     };
+
 
     /**
      * @brief Get the HDF5 compound type for the Event structure.
@@ -361,5 +418,8 @@ namespace H5DLP {
 
         return compound_type;
     };
+
+    template<>
+    inline std::string get_name<Event>() { return "Event"; }
 }
 #endif

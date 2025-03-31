@@ -28,6 +28,7 @@ EDepSim::UserEventAction::UserEventAction() {}
 EDepSim::UserEventAction::~UserEventAction() {}
 
 void EDepSim::UserEventAction::BeginOfEventAction(const G4Event* evt) {
+    EDepSimLog("");
     EDepSimNamedLog("Event", "Begin Event: " << evt->GetEventID()
                  << " w/ " << evt->GetNumberOfPrimaryVertex()
                  << " vertices");

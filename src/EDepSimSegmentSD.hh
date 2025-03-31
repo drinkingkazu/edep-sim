@@ -28,7 +28,7 @@ public:
     /// this sensitive detector.
     void SetMaximumHitSagitta(double sagitta) {
         EDepSimLog("Set max segment sagitta to " << sagitta
-                << " for " << GetName());
+                << " for " << GetName()<<"\n");
         fMaximumHitSagitta = sagitta;
     }
     double GetMaximumHitSagitta(void) {return fMaximumHitSagitta;}
@@ -38,7 +38,7 @@ public:
     /// detector.
     void SetMaximumHitSeparation(double separation) {
         EDepSimLog("Set max segment separation to " << separation
-                << " for " << GetName());
+                << " for " << GetName()<<"\n");
         fMaximumHitSeparation = separation;
     }
     double GetMaximumHitSeparation(void) {return fMaximumHitSeparation;}
@@ -47,7 +47,7 @@ public:
     /// created by this sensitive detector.
     void SetMaximumHitLength(double length) {
         EDepSimLog("Set max segment length to " << length
-            << " for " << GetName());
+            << " for " << GetName() << "\n");
         fMaximumHitLength = length;
     }
     double GetMaximumHitLength(void) {return fMaximumHitLength;}
@@ -55,7 +55,7 @@ public:
     /// Set the switch to turn on/off merging of hit segments.
     void SetAvoidMerging(bool avoid) {
         EDepSimLog("Set avoid merging to " << avoid
-                << " for " << GetName());
+                << " for " << GetName() << "\n");
         fAvoidMerging = avoid;
     }
     bool GetAvoidMerging(void) {return fAvoidMerging;}
