@@ -1122,7 +1122,11 @@ EDepSim::PersistencyManager::SummarizeHitSegmentsH5(H5DLP::VLArrayDataset<H5DLP:
         step.t = mid_point.t();
         step.theta = g4Hit->GetStartMomentum().theta();
         step.phi = g4Hit->GetStartMomentum().phi();
-        step.p = g4Hit->GetStartMomentum().mag();
+
+        double px = g4Hit->GetStartMomentum().x();
+        double py = g4Hit->GetStartMomentum().y();
+        double pz = g4Hit->GetStartMomentum().z();
+        step.p = sqrt(pow(px,2)+pow(py,2)+pow(pz,2));
         step.de = g4Hit->GetEnergyDeposit();
         step.dx = g4Hit->GetTrackLength();
         step.proc_start = g4Hit->GetStartProcessType();
