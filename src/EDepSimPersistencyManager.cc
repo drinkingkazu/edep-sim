@@ -595,7 +595,7 @@ void EDepSim::PersistencyManager::SummarizeTrajectoriesH5(
         part.mass = g4part->GetPDGMass();
         part.pdg = ndTraj->GetPDGEncoding();
         part.parent_track_id = ndTraj->GetParentID();
-        part.ancestor_track_id = EDepSim::TrajectoryMap::FindPrimaryId(part.track_id);
+        part.root_track_id = EDepSim::TrajectoryMap::FindPrimaryId(part.track_id);
         part.px = ndTraj->GetInitialMomentum().x();
         part.py = ndTraj->GetInitialMomentum().y();
         part.pz = ndTraj->GetInitialMomentum().z();
@@ -654,7 +654,7 @@ void EDepSim::PersistencyManager::SummarizeTrajectoriesH5(
     for (auto& part : array2) {
         part.track_id = fTrack2OutputIndex.at(part.track_id);
         part.parent_track_id = fTrack2OutputIndex.at(part.parent_track_id);
-        part.ancestor_track_id = fTrack2OutputIndex.at(part.ancestor_track_id);
+        part.root_track_id = fTrack2OutputIndex.at(part.root_track_id);
         dest.Add(part);
     }
 
@@ -720,11 +720,10 @@ void EDepSim::PersistencyManager::BuildIndexMap(const G4Event* event) {
         output_count++;
     }
 
-    fOutputIndex2Track.resize(std::max((int)(fOutputIndex2Track.size()),output_count),-1);
-    std::fill(fOutputIndex2Track.begin(), fOutputIndex2Track.end(), -1);
+    fOutputIndex2Track.assign(output_count, -1);
 
     int output_index = 0;
-    for (int track_id=0; track_id<max_track_id; ++track_id) {
+    for (int track_id=0; track_id<=max_track_id; ++track_id) {
         if (fTrack2InputIndex[track_id] <0) continue;
         fTrack2OutputIndex[track_id] = output_index;
         fOutputIndex2Track[output_index] = track_id;
@@ -1146,10 +1145,10 @@ EDepSim::PersistencyManager::SummarizeHitSegmentsH5(H5DLP::VLArrayDataset<H5DLP:
                 step.track_id = output_index;
             }
 
-            step.ancestor_track_id = H5DLP::kINVALID_INT;
+            step.root_track_id = H5DLP::kINVALID_INT;
             step.pdg = H5DLP::kINVALID_INT;
             if(output_index < fOutputIndex2Track.size()) {
-                step.ancestor_track_id = part_v.At(output_index).ancestor_track_id;
+                step.root_track_id = part_v.At(output_index).root_track_id;
                 step.pdg = part_v.At(output_index).pdg;
             }
             steps_v[output_index].push_back(step);

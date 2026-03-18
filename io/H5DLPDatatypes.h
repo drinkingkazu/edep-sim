@@ -92,7 +92,7 @@ namespace H5DLP {
         float p;            ///< Momentum
         int   pdg;          ///< PDG code
         int   track_id;     ///< Track ID
-        int   ancestor_track_id; ///< Track ID of the ancestor (primary) particle
+        int   root_track_id; ///< Track ID of the ancestor (primary) particle
 
         float de;           ///< Energy deposition
         float dx;           ///< Step length
@@ -105,7 +105,7 @@ namespace H5DLP {
         PStep() : x(kINVALID_FLOAT), y(kINVALID_FLOAT), z(kINVALID_FLOAT),
                   t(kINVALID_FLOAT), theta(kINVALID_FLOAT), phi(kINVALID_FLOAT),
                   p(kINVALID_FLOAT), pdg(kINVALID_INT), track_id(kINVALID_INT),
-                  ancestor_track_id(kINVALID_INT), de(kINVALID_FLOAT), dx(kINVALID_FLOAT),
+                  root_track_id(kINVALID_INT), de(kINVALID_FLOAT), dx(kINVALID_FLOAT),
                   proc_start(kINVALID_INT), subproc_start(kINVALID_SHORT),
                   proc_stop(kINVALID_INT), subproc_stop(kINVALID_SHORT) {} ///< Default constructor
     };
@@ -130,7 +130,7 @@ namespace H5DLP {
         H5Tinsert(compound_type, "p",                 HOFFSET(H5DLP::PStep, p                ), H5T_NATIVE_FLOAT);
         H5Tinsert(compound_type, "pdg",               HOFFSET(H5DLP::PStep, pdg              ), H5T_NATIVE_INT  );
         H5Tinsert(compound_type, "track_id",          HOFFSET(H5DLP::PStep, track_id         ), H5T_NATIVE_INT  );
-        H5Tinsert(compound_type, "ancestor_track_id", HOFFSET(H5DLP::PStep, ancestor_track_id), H5T_NATIVE_INT  );
+        H5Tinsert(compound_type, "root_track_id",     HOFFSET(H5DLP::PStep, root_track_id    ), H5T_NATIVE_INT  );
         H5Tinsert(compound_type, "de",                HOFFSET(H5DLP::PStep, de               ), H5T_NATIVE_FLOAT);
         H5Tinsert(compound_type, "dx",                HOFFSET(H5DLP::PStep, dx               ), H5T_NATIVE_FLOAT);
         H5Tinsert(compound_type, "proc_start",        HOFFSET(H5DLP::PStep, proc_start       ), H5T_NATIVE_INT  );
@@ -178,7 +178,7 @@ namespace H5DLP {
 
         int   track_id;         ///< Track ID
         int   parent_track_id;  ///< Parent track ID
-        int   ancestor_track_id;///< Ancestor track ID
+        int   root_track_id;    ///< Ancestor track ID
         int   pdg;              ///< PDG code
         float mass;             ///< Mass
 
@@ -195,7 +195,7 @@ namespace H5DLP {
                   end_y(kINVALID_FLOAT), end_z(kINVALID_FLOAT), end_t(kINVALID_FLOAT),
                   end_px(kINVALID_FLOAT), end_py(kINVALID_FLOAT), end_pz(kINVALID_FLOAT),
                   end_ke(kINVALID_FLOAT), track_id(kINVALID_INT), parent_track_id(kINVALID_INT),
-                  ancestor_track_id(kINVALID_INT), pdg(kINVALID_INT), mass(kINVALID_FLOAT),
+                  root_track_id(kINVALID_INT), pdg(kINVALID_INT), mass(kINVALID_FLOAT),
                   proc_start(kINVALID_INT), subproc_start(kINVALID_SHORT),
                   proc_end(kINVALID_INT), subproc_end(kINVALID_SHORT) {} ///< Default constructor
     };
@@ -229,7 +229,7 @@ namespace H5DLP {
         H5Tinsert(compound_type, "end_ke",           HOFFSET(H5DLP::Particle, end_ke           ), H5T_NATIVE_FLOAT);
         H5Tinsert(compound_type, "track_id",         HOFFSET(H5DLP::Particle, track_id         ), H5T_NATIVE_INT  );
         H5Tinsert(compound_type, "parent_track_id",  HOFFSET(H5DLP::Particle, parent_track_id  ), H5T_NATIVE_INT  );
-        H5Tinsert(compound_type, "ancestor_track_id",HOFFSET(H5DLP::Particle, ancestor_track_id), H5T_NATIVE_INT  );
+        H5Tinsert(compound_type, "root_track_id",    HOFFSET(H5DLP::Particle, root_track_id    ), H5T_NATIVE_INT  );
         H5Tinsert(compound_type, "pdg",              HOFFSET(H5DLP::Particle, pdg              ), H5T_NATIVE_INT  );
         H5Tinsert(compound_type, "mass",             HOFFSET(H5DLP::Particle, mass             ), H5T_NATIVE_FLOAT);
         H5Tinsert(compound_type, "proc_start",       HOFFSET(H5DLP::Particle, proc_start       ), H5T_NATIVE_INT  );
