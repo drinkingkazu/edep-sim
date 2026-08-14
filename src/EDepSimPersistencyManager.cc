@@ -307,7 +307,8 @@ void EDepSim::PersistencyManager::SummarizePrimariesH5(
             prim.px=g4Prim->GetPx();
             prim.py=g4Prim->GetPy();
             prim.pz=g4Prim->GetPz();
-            prim.ke= sqrt(pow(prim.px,2) + pow(prim.py,2) + pow(prim.pz,2));
+            prim.ke=g4Prim->GetKineticEnergy();
+
             prim.interaction_id = interaction_id;
 
             dest_part.Add(prim);
@@ -599,7 +600,9 @@ void EDepSim::PersistencyManager::SummarizeTrajectoriesH5(
         part.px = ndTraj->GetInitialMomentum().x();
         part.py = ndTraj->GetInitialMomentum().y();
         part.pz = ndTraj->GetInitialMomentum().z();
-        part.ke = std::sqrt(pow(part.px,2) + pow(part.py,2) + pow(part.pz,2));
+
+        float pmag = std::sqrt(pow(part.px,2) + pow(part.py,2) + pow(part.pz,2));
+        part.ke = std::sqrt(pow(pmag,2) + pow(part.mass,2)) - part.mass;
 
         // Get the first point
         auto initPoint = dynamic_cast<EDepSim::TrajectoryPoint*>(ndTraj->GetPoint(0));
