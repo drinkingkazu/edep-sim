@@ -661,6 +661,46 @@ void EDepSim::PersistencyManager::SummarizeTrajectoriesH5(
         dest.Add(part);
     }
 
+    // Production check on the ancestor bookkeeping.  A wrong ancestor is a
+    // valid track id, so nothing downstream can notice it: this has to be
+    // caught here or not at all.  The two conditions are redundant on
+    // purpose.  (a) catches an ancestor that disagrees with the parent chain,
+    // which is what the decay handling in FindPrimaryId() used to produce
+    // when it was (mis)used for this field.  (b) still catches it if the
+    // parent ids are themselves damaged, since it does not consult them.
+    int badAncestor = 0;
+    for (const H5DLP::Particle& part : array2) {
+        const int parent = part.parent_track_id;
+        const int ancestor = part.ancestor_track_id;
+        if (ancestor < 0 || ancestor >= (int) array2.size()) {
+            if (++badAncestor <= 4) {
+                EDepSimError("Track " << part.track_id
+                             << " has an out of range ancestor " << ancestor);
+            }
+            continue;
+        }
+        // (a) The ancestor is inherited from the parent, and a track with no
+        // parent is its own ancestor.
+        int expected = part.track_id;
+        if (parent >= 0 && parent < (int) array2.size()) {
+            expected = array2[parent].ancestor_track_id;
+        }
+        // (b) The ancestor is the top of the tree, so it has no parent.
+        const bool isRoot = (array2[ancestor].parent_track_id < 0);
+        if (ancestor == expected && isRoot) continue;
+        if (++badAncestor <= 4) {
+            EDepSimError("Track " << part.track_id << " (parent " << parent
+                         << ") has ancestor " << ancestor
+                         << ", expected " << expected
+                         << (isRoot ? "" : " (ancestor is not a root)"));
+        }
+    }
+    if (badAncestor > 0) {
+        EDepSimError("Ancestor inconsistent with the parent chain for "
+                     << badAncestor << " of " << array2.size()
+                     << " trajectories in this event");
+    }
+
     auto end = std::chrono::high_resolution_clock::now();
     EDepSimLog("   Time report - SummarizeTrajectoriesH5: " 
         << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() 
