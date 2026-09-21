@@ -1,6 +1,8 @@
 #include "kinem/ParticleBombGenerator.hh"
 #include "EDepSimException.hh"
 
+#include <cmath>
+
 #include <G4Event.hh>
 #include <G4SystemOfUnits.hh>
 #include <G4LorentzVector.hh>
@@ -92,6 +94,40 @@ EDepSim::ParticleBombGenerator::_parse_particle(const YAML::Node &node)
   return pars;
 }
 
+/// Bias particle directions toward the bulk of the vertex volume.  The value
+/// is either a number giving the strength directly (0 is isotropic, 1 is the
+/// balanced default, values much above 4 are counterproductive) or a boolean
+/// shorthand where True selects the default strength and False turns it off.
+double
+EDepSim::ParticleBombGenerator::_parse_shoot_inward(const YAML::Node &node)
+{
+  // An absent key leaves the generator's own default in place, which is off.
+  if (!node) return DLPGenerator::kDEFAULT_SHOOT_INWARD_POWER;
+
+  // Try the number first.  decode() reports failure instead of throwing, so a
+  // value that is not a number simply falls through to the boolean below.
+  double power = 0.;
+  if (YAML::convert<double>::decode(node, power)) {
+    // The generator rejects this itself with error code 17, but that surfaces
+    // as a bare number, so check here where the offending value can be named.
+    if (!std::isfinite(power) || power < 0.) {
+      std::cerr << "[ParticleBombGenerator] ShootInward must be finite and >= 0, got "
+                << power << std::endl;
+      throw std::exception();
+    }
+    return power;
+  }
+
+  bool enabled = false;
+  if (YAML::convert<bool>::decode(node, enabled)) {
+    return enabled ? kShootInwardOnPower : 0.;
+  }
+
+  std::cerr << "[ParticleBombGenerator] ShootInward must be a boolean or a number, got '"
+            << node.Scalar() << "'" << std::endl;
+  throw std::exception();
+}
+
 DLPGenerator::GenParamInteraction 
 EDepSim::ParticleBombGenerator::_parse_interaction(const YAML::Node &node) 
 {
@@ -117,6 +153,8 @@ EDepSim::ParticleBombGenerator::_parse_interaction(const YAML::Node &node)
   pars.trange[1] = node["TRange"][1].as<double>();
   
   pars.add_root = node["AddParent"].as<bool>(false);
+
+  pars.shoot_inward_power = _parse_shoot_inward(node["ShootInward"]);
 
   for (auto const &p : node["Particles"]) {
     pars.part_param_v.push_back(_parse_particle(p));
