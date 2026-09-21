@@ -596,7 +596,7 @@ void EDepSim::PersistencyManager::SummarizeTrajectoriesH5(
         part.mass = g4part->GetPDGMass();
         part.pdg = ndTraj->GetPDGEncoding();
         part.parent_track_id = ndTraj->GetParentID();
-        part.ancestor_track_id = EDepSim::TrajectoryMap::FindPrimaryId(part.track_id);
+        part.ancestor_track_id = EDepSim::TrajectoryMap::FindAncestorId(part.track_id);
         part.px = ndTraj->GetInitialMomentum().x();
         part.py = ndTraj->GetInitialMomentum().y();
         part.pz = ndTraj->GetInitialMomentum().z();

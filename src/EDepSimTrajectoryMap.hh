@@ -27,8 +27,18 @@ public:
     static void Clear();
 
     /// Find the primary track ID for the current track.  This is the primary
-    /// that is the ultimate parent of the current track.
+    /// that is the ultimate parent of the current track.  A decay product
+    /// counts as a primary, since it should be independently reconstructed,
+    /// so this stops at the first decay vertex going up the chain.  Use
+    /// FindAncestorId() if you want the true root of the parent chain.
     static int FindPrimaryId(int trackId);
+
+    /// Find the ancestor track ID for the current track.  This is the top of
+    /// the parent chain (the track descending from the generator level), and
+    /// unlike FindPrimaryId() it is not reset at decay vertices.  Tracks that
+    /// are not being saved are skipped, so the result is the highest saved
+    /// track in the chain.
+    static int FindAncestorId(int trackId);
 
 private:
     /// A map to the trajectories information indexed the the track id. Be

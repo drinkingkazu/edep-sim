@@ -49,6 +49,37 @@ int EDepSim::TrajectoryMap::FindPrimaryId(int trackId) {
     return currentId;
 }
 
+int EDepSim::TrajectoryMap::FindAncestorId(int trackId) {
+    // Unlike FindPrimaryId(), this walks all the way to the top of the parent
+    // chain: a decay vertex does not start a new ancestor.  The returned track
+    // is the highest track in the chain that is flagged to be saved, so that
+    // the answer stays consistent with the parent ids that are written out
+    // (those are also remapped onto the closest saved parent).
+    int ancestorId = trackId;
+    int currentId = trackId;
+    int loopCount=0;
+    for (loopCount=0;loopCount<10000;++loopCount) {
+        G4VTrajectory* t = Get(currentId);
+        // The chain leaves the trajectory map, so the last saved track found
+        // is the best ancestor available.
+        if (!t) break;
+        EDepSim::Trajectory* edepTraj = dynamic_cast<EDepSim::Trajectory*>(t);
+        if (!edepTraj) EDepSimThrow("Invalid Trajectory");
+        if (edepTraj->SaveTrajectory()) ancestorId = currentId;
+        int parentId = edepTraj->GetParentID();
+        // A parent id of zero means this is a primary particle, and a self
+        // referencing parent would be an infinite loop.
+        if (parentId == 0 || parentId == currentId) break;
+        currentId = parentId;
+    }
+    if (loopCount>9999) {
+        EDepSimLog("Infinite Loop in EDepSim::TrajectoryMap::FindAncestorId(): "
+                 << "Track Id: " << trackId);
+    }
+
+    return ancestorId;
+}
+
 G4VTrajectory* EDepSim::TrajectoryMap::Get(int trackId) {
     std::map<int,G4VTrajectory*>::iterator t = fMap.find(trackId);
     if (t == fMap.end()) {
