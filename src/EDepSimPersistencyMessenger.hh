@@ -43,6 +43,9 @@ private:
     G4UIcmdWithoutParameter*   fClearBoundariesCMD;
     G4UIcmdWithABool*          fROOTOutputCMD;
     G4UIcmdWithABool*          fHDF5OutputCMD;
+    G4UIcmdWithABool*          fStepTruthCMD;
+    G4UIcmdWithAnInteger*      fGroupSizeCMD;
+    G4UIcmdWithADoubleAndUnit* fGroupGapCMD;
 
 };
 #endif

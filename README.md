@@ -222,6 +222,19 @@ masses and densities are also in CLHEP units, so that 1 kilogram equals
 6.24x10^24^ MeV ns^2^ mm^-2^, and densities are in units of 6.24x^24^ MeV
 ns^2^ mm^-5^.
 
+#### Step and mctruth files (HDF5)
+
+With HDF5 output, `/edep/db/set/stepTruth true` writes two files instead of one:
+`NAME_step.h5` (energy deposits, track id and groups) and `NAME_mctruth.h5` (the
+rest: particles, primaries, vertices, trajectory points, and what else is known about
+each deposit, in the same row order). An event is one group `entry_NNNNNN`.
+
+A group is up to `/edep/db/set/groupSize` (5) consecutive steps of one track, cut
+where two steps are more than `/edep/db/set/groupGap` (3 mm) apart.
+
+Large arrays are written with the blosc HDF5 filter if HDF5 finds it
+(`HDF5_PLUGIN_PATH`), else with deflate.
+
 #### Using the edepsim_io library
 
 In addition to accessing the tree using "normal" root methods, you can also

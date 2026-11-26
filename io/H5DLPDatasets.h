@@ -206,6 +206,11 @@ namespace H5DLP {
         T& At(size_t i) { return _data_v.at(i); }
 
         /**
+         * @brief All elements collected so far.
+         */
+        const std::vector<T>& Data() const { return _data_v; }
+
+        /**
          * @brief Reserve the vector memory space.
          * 
          * @param n The size of the vector to reserve.

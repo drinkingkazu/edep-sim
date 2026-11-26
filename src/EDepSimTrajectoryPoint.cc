@@ -23,10 +23,14 @@ EDepSim::TrajectoryPoint::TrajectoryPoint()
       fStepStatus(fUndefined),
       fProcessType(fNotDefined), fProcessSubType(0),
       fProcessName("NotDefined"), fPhysVolName("OutofWorld"),
-      fPrevPosition(0,0,0), fStepMaterial("Default") { }
+      fPrevPosition(0,0,0), fStepMaterial("Default") { fProcessDeposit = 0.; }
 
 EDepSim::TrajectoryPoint::TrajectoryPoint(const G4Step* aStep)
     : G4TrajectoryPoint(aStep->GetPostStepPoint()->GetPosition()) {
+    // A step without a defining process keeps these values.
+    fProcessType = fNotDefined;
+    fProcessSubType = -1;
+    fProcessDeposit = 0.;
     fTime = aStep->GetPostStepPoint()->GetGlobalTime();
     fMomentum = aStep->GetPostStepPoint()->GetMomentum();
     fStepStatus = aStep->GetPostStepPoint()->GetStepStatus();
@@ -35,7 +39,7 @@ EDepSim::TrajectoryPoint::TrajectoryPoint(const G4Step* aStep)
             = aStep->GetPostStepPoint()->GetPhysicalVolume()->GetName();
     }
     else {
-        fPhysVolName == "OutOfWorld";
+        fPhysVolName = "OutOfWorld";
     }
     fPrevPosition = aStep->GetPreStepPoint()->GetPosition();
     fStepMaterial = aStep->GetPreStepPoint()->GetMaterial()->GetName();
@@ -55,6 +59,10 @@ EDepSim::TrajectoryPoint::TrajectoryPoint(const G4Step* aStep)
 
 EDepSim::TrajectoryPoint::TrajectoryPoint(const G4Track* aTrack)
     : G4TrajectoryPoint(aTrack->GetPosition()) {
+    // A track without a creator process (a primary) keeps these values.
+    fProcessType = fNotDefined;
+    fProcessSubType = -1;
+    fProcessDeposit = 0.;
     fTime = aTrack->GetGlobalTime();
     fMomentum = aTrack->GetMomentum();
     fStepStatus = fUndefined;
@@ -64,7 +72,7 @@ EDepSim::TrajectoryPoint::TrajectoryPoint(const G4Track* aTrack)
             = aTrack->GetVolume()->GetLogicalVolume()->GetMaterial()->GetName();
     }
     else {
-        fPhysVolName == "OutOfWorld";
+        fPhysVolName = "OutOfWorld";
     }
     fPrevPosition = aTrack->GetPosition();
 

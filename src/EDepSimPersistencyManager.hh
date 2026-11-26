@@ -5,6 +5,7 @@
 
 #include "TG4Event.h"
 #include "H5DLPFileStorage.h"
+#include "H5DLPEventFile.h"
 
 #include <G4VPersistencyManager.hh>
 #include <G4StepStatus.hh>
@@ -238,6 +239,16 @@ public:
     }
 
 
+    /// Write the HDF5 output as a step file and an mctruth file.
+    void SetStepTruth(bool val) {fStepTruth = val;}
+    bool GetStepTruth() const {return fStepTruth;}
+
+    /// The definition of the step groups in the step file.
+    void SetGroupSize(int n) {fGroupSize = n;}
+    int GetGroupSize() const {return fGroupSize;}
+    void SetGroupGap(double gap) {fGroupGap = gap;}
+    double GetGroupGap() const {return fGroupGap;}
+
 protected:
     /// Set the output filename.  This can be used by the derived classes to
     /// inform the base class of the output file name.
@@ -254,6 +265,23 @@ protected:
     /// A summary of the primary vertices in the event (HDF5)
     ::H5DLP::FileStorage fH5Summary;
 
+    /// Write one event to the step and mctruth files.
+    bool WriteStepTruth(const G4Event* event);
+
+    /// Open and close the step and mctruth files.
+    void OpenStepTruth();
+    void CloseStepTruth();
+
+    /// The step and mctruth files.
+    ::H5DLP::EventFile fStepFile;
+    ::H5DLP::EventFile fTruthFile;
+
+    /// A switch to write the step and mctruth files instead of the older
+    /// HDF5 layout.
+    bool fStepTruth;
+    int fGroupSize;
+    double fGroupGap;
+
     /// A switch to save the ROOT file output
     bool fROOTOutput;
 
@@ -265,6 +293,15 @@ private:
     // filled.
     void SummarizePrimaries(std::vector<TG4PrimaryVertex>& primaries,
         const G4PrimaryVertex* event);
+
+    /// The code (row of the table) of a string, added if it is new.
+    typedef std::vector<std::string> StringTable;
+    static int Code(StringTable& table, const std::string& value);
+    StringTable fMaterialNames, fProcessNames, fVolumeNames;
+
+    /// Informational vertices collected for the mctruth file.
+    std::vector<H5DLP::Vertex> fInfoVertices;
+    std::vector<H5DLP::Primary> fInfoPrimaries;
 
     // Fill the vertex container.  This allows informational vertices to be
     // filled.

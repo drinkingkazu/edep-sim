@@ -55,5 +55,10 @@ private:
     /// The number of events saved to the output file since the last write.
     int fEventsNotSaved;
 
+    /// Open was called, the file is created with the first event (the
+    /// layout is chosen by a macro command after Open).
+    bool fOpenPending = false;
+    void OpenNow();
+
 };
 #endif

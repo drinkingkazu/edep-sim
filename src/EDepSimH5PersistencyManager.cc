@@ -27,14 +27,24 @@ EDepSim::H5PersistencyManager::~H5PersistencyManager() {
     if (fH5Summary.IsOpen()) {
         fH5Summary.CloseFile();
     }
+    CloseStepTruth();
 }
 
-bool EDepSim::H5PersistencyManager::IsOpen() { if (fH5Summary.IsOpen()) fH5Summary.CloseFile(); }
+bool EDepSim::H5PersistencyManager::IsOpen() {
+    return fOpenPending || fH5Summary.IsOpen() || fStepFile.IsOpen();
+}
+
+void EDepSim::H5PersistencyManager::OpenNow() {
+    if (!fOpenPending) return;
+    fOpenPending = false;
+    if (fStepTruth) OpenStepTruth();
+    else fH5Summary.OpenFile(GetFilename());
+}
 
 bool EDepSim::H5PersistencyManager::Open(G4String filename) {
     EDepSimDebug("   "<<__PRETTY_FUNCTION__);
 
-    if (fH5Summary.IsOpen()) {
+    if (IsOpen()) {
         EDepSimError("EDepSim::H5PersistencyManager::Open "
                  << "-- Close current file" );
         return false;
@@ -49,8 +59,8 @@ bool EDepSim::H5PersistencyManager::Open(G4String filename) {
 
     EDepSimLog("EDepSim::H5PersistencyManager::Open " << GetFilename());
 
-    fH5Summary.OpenFile(GetFilename());
-       
+    fOpenPending = true;
+
     fEventsNotSaved = 0;
     EDepSimDebug("   "<<__PRETTY_FUNCTION__<<" done");
 
@@ -60,12 +70,14 @@ bool EDepSim::H5PersistencyManager::Open(G4String filename) {
 bool EDepSim::H5PersistencyManager::Close() {
     EDepSimDebug("   "<<__PRETTY_FUNCTION__);
 
-    if (!fH5Summary.IsOpen()) {
+    if (!IsOpen()) {
         EDepSimError("EDepSim::H5PersistencyManager::Close "
                    << "-- No Output File");
         return false;
     }
-    fH5Summary.CloseFile();
+    OpenNow();   // a run without events still makes its file(s)
+    if (fH5Summary.IsOpen()) fH5Summary.CloseFile();
+    CloseStepTruth();
     EDepSimDebug("   "<<__PRETTY_FUNCTION__<<" done");
 
     return true;
@@ -74,16 +86,17 @@ bool EDepSim::H5PersistencyManager::Close() {
 bool EDepSim::H5PersistencyManager::Store(const G4Event* anEvent) {
     EDepSimDebug("   "<<__PRETTY_FUNCTION__);
 
-    if (!fH5Summary.IsOpen()) {
+    if (!IsOpen()) {
         EDepSimError("EDepSim::H5PersistencyManager::Store "
                    << "-- No Output File");
         return false;
     }
+    OpenNow();
 
     bool save = UpdateSummaries(anEvent);
 
     if (save) {
-        fH5Summary.Write();
+        if (fH5Summary.IsOpen()) fH5Summary.Write();
 
         auto genAction = dynamic_cast<const EDepSim::UserPrimaryGeneratorAction*>(
             G4RunManager::GetRunManager()->GetUserPrimaryGeneratorAction());
@@ -114,7 +127,7 @@ bool EDepSim::H5PersistencyManager::Store(const G4Run*) {
 bool EDepSim::H5PersistencyManager::Store(const G4VPhysicalVolume*) {
     EDepSimDebug("   "<<__PRETTY_FUNCTION__);
 
-    if (!fH5Summary.IsOpen()) {
+    if (!IsOpen()) {
         EDepSimError("EDepSim::H5PersistencyManager::Store "
                    << "-- No Output File");
         return false;

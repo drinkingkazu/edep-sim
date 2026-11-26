@@ -49,6 +49,7 @@ EDepSim::PersistencyManager::PersistencyManager()
       fGammaThreshold(5*MeV), fNeutronThreshold(50*MeV),
       fTrajectoryPointAccuracy(1.*mm), fTrajectoryPointDeposit(0*MeV),
       fSaveAllPrimaryTrajectories(true),
+      fStepTruth(false), fGroupSize(5), fGroupGap(3.*mm),
       fROOTOutput(false), fHDF5Output(false),
       fMergeHitSegments(false){
     fPersistencyMessenger = new EDepSim::PersistencyMessenger(this);
@@ -233,6 +234,8 @@ bool EDepSim::PersistencyManager::UpdateSummaries(const G4Event* event) {
         EDepSimDebug("      Segment Detectors "
                 << fEventSummary.SegmentDetectors.size());
 
+    }else if (fStepTruth) {
+        return WriteStepTruth(event);
     }else{
         EDepSimDebug("   Constructing the outputs for HDF5");
 
@@ -315,7 +318,7 @@ void EDepSim::PersistencyManager::SummarizePrimariesH5(
 
             vtx.num_particles++;
             vtx.ke_sum += prim.ke;
-            vtx.energy_sum += sqrt(pow(prim.ke,2) + pow(prim.mass,2));
+            vtx.energy_sum += prim.ke + prim.mass;
         }
 
         // Check to see if there is anyu user information associated with the
@@ -334,7 +337,21 @@ void EDepSim::PersistencyManager::SummarizePrimariesH5(
             vtx.probability = srcInfo->GetProbability();
             const G4PrimaryVertex* infoVertex
                 = srcInfo->GetInformationalVertex();
-            if (infoVertex) {
+            if (infoVertex && fStepTruth) {
+                H5DLP::VLArrayDataset<H5DLP::Primary> info_part;
+                H5DLP::VLArrayDataset<H5DLP::Vertex> info_vtx;
+                SummarizePrimariesH5(info_part, info_vtx, infoVertex);
+                // interaction_id is that of the vertex they belong to
+                for (size_t i=0; i<info_part.Size(); ++i) {
+                    fInfoPrimaries.push_back(info_part.At(i));
+                    fInfoPrimaries.back().interaction_id = interaction_id;
+                }
+                for (size_t i=0; i<info_vtx.Size(); ++i) {
+                    fInfoVertices.push_back(info_vtx.At(i));
+                    fInfoVertices.back().interaction_id = interaction_id;
+                }
+            }
+            else if (infoVertex) {
 
                 auto& info_dest_part = fH5Summary.GetVLArray<H5DLP::Primary>(vtx.generator.c_str(),"primary");
                 auto& info_dest = fH5Summary.GetVLArray<H5DLP::Vertex>(vtx.generator.c_str(),"vertex");
@@ -620,7 +637,8 @@ void EDepSim::PersistencyManager::SummarizeTrajectoriesH5(
         part.end_px = lastPoint->GetMomentum().x();
         part.end_py = lastPoint->GetMomentum().y();
         part.end_pz = lastPoint->GetMomentum().z();
-        part.end_ke = std::sqrt(pow(part.end_px,2) + pow(part.end_py,2) + pow(part.end_pz,2));
+        float end_pmag = std::sqrt(pow(part.end_px,2) + pow(part.end_py,2) + pow(part.end_pz,2));
+        part.end_ke = std::sqrt(pow(end_pmag,2) + pow(part.mass,2)) - part.mass;
         part.proc_start = initPoint->GetProcessType();
         part.subproc_start = initPoint->GetProcessSubType();
         part.proc_name_start = initPoint->GetProcessName();
@@ -1428,9 +1446,12 @@ EDepSim::PersistencyManager::SelectTrajectoryPoints(std::vector<int>& selected,
 
     double desiredAccuracy = GetTrajectoryPointAccuracy();
     // Make sure that the trajectory accuracy stays in tolerance.
+    // The intervals before "checked" are within the tolerance, and splitting a
+    // later interval does not change them.
+    size_t checked = 0;
     for (int throttle = 0; throttle < 1000; ++throttle) {
         bool addPoint = false;
-        for (std::vector<int>::iterator p1 = selected.begin();
+        for (std::vector<int>::iterator p1 = selected.begin() + checked;
              p1 != selected.end();
              ++p1) {
             std::vector<int>::iterator p2 = p1+1;
@@ -1439,6 +1460,7 @@ EDepSim::PersistencyManager::SelectTrajectoryPoints(std::vector<int>& selected,
             if (trajectoryAccuracy <= desiredAccuracy) continue;
             int split = SplitTrajectory(g4Traj,*p1,*p2);
             if (split < 0) continue;
+            checked = p1 - selected.begin();
             selected.push_back(split);
             addPoint = true;
             break;

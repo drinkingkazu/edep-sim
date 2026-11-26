@@ -20,7 +20,8 @@ set(source
   TG4HitSegment.cxx
   TG4Event.cxx
   H5DLPDatasets.cxx
-  H5DLPFileStorage.cxx)
+  H5DLPFileStorage.cxx
+  H5DLPEventFile.cxx)
 
 set(includes
   TG4PrimaryVertex.h
@@ -30,6 +31,7 @@ set(includes
   H5DLPDatatypes.h
   H5DLPDatasets.h
   H5DLPFileStorage.h
+  H5DLPEventFile.h
   )
 
 # Compile the base library with private I/O fields.

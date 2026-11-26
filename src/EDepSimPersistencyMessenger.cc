@@ -117,6 +117,21 @@ EDepSim::PersistencyMessenger::PersistencyMessenger(
     fHDF5OutputCMD->SetGuidance("If true, store the output in a HDF5 file.");
     fHDF5OutputCMD->SetParameterName("Store", false);
     fHDF5OutputCMD->SetDefaultValue("false");
+
+    fStepTruthCMD = new G4UIcmdWithABool("/edep/db/set/stepTruth", this);
+    fStepTruthCMD->SetGuidance("If true, HDF5 output is a step file and an mctruth file\n"
+                               "  (NAME.h5 -> NAME_step.h5 and NAME_mctruth.h5).");
+    fStepTruthCMD->SetParameterName("Store", false);
+    fStepTruthCMD->SetDefaultValue("true");
+
+    fGroupSizeCMD = new G4UIcmdWithAnInteger("/edep/db/set/groupSize", this);
+    fGroupSizeCMD->SetGuidance("Consecutive steps of one track per group (step file).");
+    fGroupSizeCMD->SetParameterName("steps", false);
+
+    fGroupGapCMD = new G4UIcmdWithADoubleAndUnit("/edep/db/set/groupGap", this);
+    fGroupGapCMD->SetGuidance("A larger distance between consecutive steps starts a new group.");
+    fGroupGapCMD->SetParameterName("length", false, false);
+    fGroupGapCMD->SetUnitCategory("Length");
 }
 
 EDepSim::PersistencyMessenger::~PersistencyMessenger() {
@@ -135,6 +150,9 @@ EDepSim::PersistencyMessenger::~PersistencyMessenger() {
     delete fPersistencySetDIR;
     delete fROOTOutputCMD;
     delete fHDF5OutputCMD;
+    delete fStepTruthCMD;
+    delete fGroupSizeCMD;
+    delete fGroupGapCMD;
 }
 
 
@@ -195,6 +213,15 @@ void EDepSim::PersistencyMessenger::SetNewValue(G4UIcommand* command,
         EDepSimLog(" ROOT "<<fPersistencyManager->GetStoreROOT() 
         << " HDF5 "<<fPersistencyManager->GetStoreHDF5()<<std::endl);
     }
+    else if (command == fStepTruthCMD) {
+        fPersistencyManager->SetStepTruth(fStepTruthCMD->GetNewBoolValue(newValue));
+    }
+    else if (command == fGroupSizeCMD) {
+        fPersistencyManager->SetGroupSize(fGroupSizeCMD->GetNewIntValue(newValue));
+    }
+    else if (command == fGroupGapCMD) {
+        fPersistencyManager->SetGroupGap(fGroupGapCMD->GetNewDoubleValue(newValue));
+    }
     else {
         G4cerr << "EDepSim::PersistencyMessenger::SetNewValue "
                << "Unknown command: " << command->GetCommandName()
@@ -244,6 +271,15 @@ G4String EDepSim::PersistencyMessenger::GetCurrentValue(G4UIcommand * command) {
     else if(command==fHDF5OutputCMD) {
         currentValue = fHDF5OutputCMD->ConvertToString(
             fPersistencyManager->GetStoreHDF5());
+    }
+    else if (command == fStepTruthCMD) {
+        currentValue = fStepTruthCMD->ConvertToString(fPersistencyManager->GetStepTruth());
+    }
+    else if (command == fGroupSizeCMD) {
+        currentValue = fGroupSizeCMD->ConvertToString(fPersistencyManager->GetGroupSize());
+    }
+    else if (command == fGroupGapCMD) {
+        currentValue = fGroupGapCMD->ConvertToString(fPersistencyManager->GetGroupGap());
     }
     else {
         G4cerr << "EDepSim::PersistencyMessenger::GetCurrentValue "

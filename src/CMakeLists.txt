@@ -47,6 +47,11 @@ target_link_libraries(edepsim PUBLIC
   yaml-cpp LiteFMWK_ParticleBomb
 )
 
+# The trajectory point selection and the output are slow without optimization
+# (the default build type is Debug).
+set_source_files_properties(EDepSimPersistencyManager.cc
+  EDepSimPersistencyStepTruth.cc PROPERTIES COMPILE_OPTIONS "-O2")
+
 # Install the G4 macro files used to control the MC.
 install(FILES edepsim-defaults-1.0.mac DESTINATION lib/EDepSim)
 
